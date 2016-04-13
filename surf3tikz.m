@@ -112,16 +112,17 @@ act_data_points = zeros(10,3);
 mid_row_pixel = zeros(10,1);
 mid_col_pixel = zeros(10,1);
 
-data_point_idc(1) = sub2ind([x_max_idx,y_max_idx], 1, 1);
-data_point_idc(2) = sub2ind([x_max_idx,y_max_idx], 1, round(y_max_idx/2));
-data_point_idc(3) = sub2ind([x_max_idx,y_max_idx], 1, y_max_idx);
-data_point_idc(4) = sub2ind([x_max_idx,y_max_idx], round(x_max_idx/2), 1);
-data_point_idc(5) = sub2ind([x_max_idx,y_max_idx], x_max_idx, 1);
-data_point_idc(6) = sub2ind([x_max_idx,y_max_idx], round(x_max_idx/2), round(y_max_idx/2));
-data_point_idc(7) = sub2ind([x_max_idx,y_max_idx], x_max_idx, round(y_max_idx/2));
-data_point_idc(8) = sub2ind([x_max_idx,y_max_idx], x_max_idx, y_max_idx);
-data_point_idc(9) = maxidx;
-data_point_idc(10) = minidx;
+data_point_idc(1) = maxidx;
+data_point_idc(2) = minidx;
+data_point_idc(3) = sub2ind([x_max_idx,y_max_idx], 1, 1);
+data_point_idc(4) = sub2ind([x_max_idx,y_max_idx], 1, round(y_max_idx/2));
+data_point_idc(5) = sub2ind([x_max_idx,y_max_idx], 1, y_max_idx);
+data_point_idc(6) = sub2ind([x_max_idx,y_max_idx], round(x_max_idx/2), 1);
+data_point_idc(7) = sub2ind([x_max_idx,y_max_idx], x_max_idx, 1);
+data_point_idc(8) = sub2ind([x_max_idx,y_max_idx], round(x_max_idx/2), round(y_max_idx/2));
+data_point_idc(9) = sub2ind([x_max_idx,y_max_idx], x_max_idx, round(y_max_idx/2));
+data_point_idc(10) = sub2ind([x_max_idx,y_max_idx], x_max_idx, y_max_idx);
+
 
 for i = 1:numel(data_point_idc)
 	data_points(i,:) = [plot_handles.surf.XData(data_point_idc(i)), ...
