@@ -1,9 +1,8 @@
-function [pt_point_positions, act_data_points, colorbar_limits] = surf3tikz(h_figure, export_name, cfg, debug)
+function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(h_figure, export_name, cfg, debug)
 %SURF3TIKZ converts a surf plot into a tikz file
 % This function takes a figure containing a surf plot and creates a tikz file and an according png
-% file. To achieve this, it automatically places data cursors on extreme points of the surf plot and
+% file. To achieve this, it automatically places data cursors on extreme points of the box around the plot and
 % subsequently detects their pixel position.
-% Will only work on the first surf object it finds and will get confused for now, if more than one surf is used.
 % Additionally the key values are available as output parameters to build your own tikz file from scratch.
 %
 % INPUT:
@@ -82,76 +81,169 @@ while true
 	i = i+1;
 end
 
-% determine surf object
+global_data_limits_x = [Inf, -Inf];
+global_data_limits_y = [Inf, -Inf];
+global_data_limits_z = [Inf, -Inf];
+
+% USERBREAK
+plot_handles.axes.Visible = 'off';
+title(plot_handles.axes,'')
+% keyboard
+
+% find limits of all the plot objects of the current axes
+axes_limit_x = plot_handles.axes.XLim;
+axes_limit_y = plot_handles.axes.YLim;
+axes_limit_z = plot_handles.axes.ZLim;
+
 for i=1:numel(plot_handles.axes.Children)
-	if isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Surface')
-		plot_handles.surf = plot_handles.axes.Children(i);
+	data_limits_x(1) = min(plot_handles.axes.Children(i).XData(:));
+	data_limits_x(2) = max(plot_handles.axes.Children(i).XData(:));
+	data_limits_y(1) = min(plot_handles.axes.Children(i).YData(:));
+	data_limits_y(2) = max(plot_handles.axes.Children(i).YData(:));
+	data_limits_z(1) = min(plot_handles.axes.Children(i).ZData(:));
+	data_limits_z(2) = max(plot_handles.axes.Children(i).ZData(:));
+	
+	if data_limits_x(1) < global_data_limits_x(1)
+		global_data_limits_x(1) = data_limits_x(1);
+	end
+	if data_limits_x(2) > global_data_limits_x(2)
+		global_data_limits_x(2) = data_limits_x(2);
+	end
+	
+	if data_limits_y(1) < global_data_limits_y(1)
+		global_data_limits_y(1) = data_limits_y(1);
+	end
+	if data_limits_y(2) > global_data_limits_y(2)
+		global_data_limits_y(2) = data_limits_y(2);
+	end
+	
+	if data_limits_z(1) < global_data_limits_z(1)
+		global_data_limits_z(1) = data_limits_z(1);
+	end
+	if data_limits_z(2) > global_data_limits_z(2)
+		global_data_limits_z(2) = data_limits_z(2);
+	end
+	
+	plot_handles.axes.Children(i).Visible = 'off';
+end
+
+current_view_point = plot_handles.axes.View;
+
+% use auto mode value for axes where neccessary
+if isinf(axes_limit_x(1))
+	axes_limit_x(1) = global_data_limits_x(1);
+	plot_handles.axes.XLim = axes_limit_x;
+end
+if isinf(axes_limit_x(2))
+	axes_limit_x(2) = global_data_limits_x(2);
+	plot_handles.axes.XLim = axes_limit_x;
+end
+
+if isinf(axes_limit_y(1))
+	axes_limit_y(1) = global_data_limits_y(1);
+	plot_handles.axes.YLim = axes_limit_y;
+end
+if isinf(axes_limit_y(2))
+	axes_limit_y(2) = global_data_limits_y(2);
+	plot_handles.axes.YLim = axes_limit_y;
+end
+
+if isinf(axes_limit_z(1))
+	axes_limit_z(1) = global_data_limits_z(1);
+	plot_handles.axes.ZLim = axes_limit_z;
+end
+if isinf(axes_limit_z(2))
+	axes_limit_z(2) = global_data_limits_z(2);
+	plot_handles.axes.ZLim = axes_limit_z;
+end
+
+plot_handles.axes.XLim = axes_limit_x;
+plot_handles.axes.YLim = axes_limit_y;
+plot_handles.axes.ZLim = axes_limit_z;
+
+% determine axes box outer points
+box_points = nan(8,3);
+box_points(1,:) = [axes_limit_x(1),axes_limit_y(1),axes_limit_z(1)];
+box_points(2,:) = [axes_limit_x(1),axes_limit_y(1),axes_limit_z(2)];
+box_points(3,:) = [axes_limit_x(1),axes_limit_y(2),axes_limit_z(1)];
+box_points(4,:) = [axes_limit_x(1),axes_limit_y(2),axes_limit_z(2)];
+box_points(5,:) = [axes_limit_x(2),axes_limit_y(1),axes_limit_z(1)];
+box_points(6,:) = [axes_limit_x(2),axes_limit_y(1),axes_limit_z(2)];
+box_points(7,:) = [axes_limit_x(2),axes_limit_y(2),axes_limit_z(1)];
+box_points(8,:) = [axes_limit_x(2),axes_limit_y(2),axes_limit_z(2)];
+
+rot_matrix_Z = rotz(-current_view_point(1));
+rot_matrix_X = rotx(current_view_point(2));
+box_points_turned = (rot_matrix_X*(rot_matrix_Z*box_points'))';
+
+[~, ubpidc, ~] = unique([box_points_turned(:,1), box_points_turned(:,3)], 'rows');
+
+box_points_X_min_idc = ubpidc(box_points_turned(ubpidc,1) == min(box_points_turned(ubpidc,1)));
+box_points_X_max_idc = ubpidc(box_points_turned(ubpidc,1) == max(box_points_turned(ubpidc,1)));
+box_points_Z_min_idc = ubpidc(box_points_turned(ubpidc,3) == min(box_points_turned(ubpidc,3)));
+box_points_Z_max_idc = ubpidc(box_points_turned(ubpidc,3) == max(box_points_turned(ubpidc,3)));
+
+box_points_idc = {box_points_X_min_idc, box_points_X_max_idc, box_points_Z_min_idc, box_points_Z_max_idc};
+
+numel_X_min = numel(box_points_X_min_idc);
+numel_X_max = numel(box_points_X_max_idc);
+numel_Z_min = numel(box_points_Z_min_idc);
+numel_Z_max = numel(box_points_Z_max_idc);
+
+numels = [numel_X_min, numel_X_max, numel_Z_min, numel_Z_max];
+
+tikz_support_points = nan(4,3);
+
+if min(numels) == 1
+	% first scenario: azimuth and elevation rotation
+	% easy pick, no set dependecy, easy peasy: just take random (first) element from every set
+	tikz_support_points(1,:) = box_points(box_points_idc{1}(1),:);
+	tikz_support_points(2,:) = box_points(box_points_idc{2}(1),:);
+	tikz_support_points(3,:) = box_points(box_points_idc{3}(1),:);
+	tikz_support_points(4,:) = box_points(box_points_idc{4}(1),:);
+elseif max(numels) == 4
+	% second scenario: only azimuth rotation, but no coincided y axis
+	% a bit more complex picking, semi dependend sets: start picking from sets in
+	% ascending order of element number and don't use elements twice
+	used_idc = [0,0,0,0];
+	[~, sort_ind] = sort(numels);
+	for i=1:4
+		remaining_idc = setdiff(box_points_idc{sort_ind(i)},used_idc);
+		tikz_support_points(i,:) = box_points(remaining_idc(1),:);
+		used_idc(i) = remaining_idc(1);
+	end	
+elseif min(numels) == max(numels)
+	% third scenario: coinciding x and y axis
+	% complex picking, fully dependend sets: pick in every stage determines the net sext to pick from
+	used_idc = [0,0,0,0];
+	curr_set = 1;
+	for i=1:4
+		remaining_idc = setdiff(box_points_idc{curr_set},used_idc);
+		tikz_support_points(i,:) = box_points(remaining_idc(1),:);
+		used_idc(i) = remaining_idc(1);
+		curr_set = setdiff(find(cellfun(@(x) sum(x == remaining_idc(1)), box_points_idc)),curr_set);
 	end
 end
 
-axis off
-title('')
 
-% keyboard
+hold(plot_handles.axes, 'on');
+plot_handles.support_plot = plot3(plot_handles.axes, nan, nan, nan, ...
+	'Marker', 'square', ...
+	'MarkerFaceColor', [0,0,0], ...
+	'MarkerEdgeColor', [1,1,1], ...
+	'LineStyle', 'none', ...
+	'Tag', 'BoxPoints', ...
+	'MarkerSize', 10);
+hold(plot_handles.axes, 'off');
 
-x_limits(1) = min(plot_handles.surf.XData(:));
-x_limits(2) = max(plot_handles.surf.XData(:));
-y_limits(1) = min(plot_handles.surf.YData(:));
-y_limits(2) = max(plot_handles.surf.YData(:));
-[x_max_idx,y_max_idx] = size(plot_handles.surf.XData);
-[z_limits(1), minidx] = min(plot_handles.surf.ZData(:));
-[z_limits(2), maxidx] = max(plot_handles.surf.ZData(:));
-
-if isnan(colorbar_limits)
-	colorbar_limits = z_limits;
-end
-
-
-data_points = zeros(10,3);
-act_data_points = zeros(10,3);
 mid_row_pixel = zeros(10,1);
 mid_col_pixel = zeros(10,1);
 
-data_point_idc(1) = maxidx;
-data_point_idc(2) = minidx;
-data_point_idc(3) = sub2ind([x_max_idx,y_max_idx], 1, 1);
-data_point_idc(4) = sub2ind([x_max_idx,y_max_idx], 1, round(y_max_idx/2));
-data_point_idc(5) = sub2ind([x_max_idx,y_max_idx], 1, y_max_idx);
-data_point_idc(6) = sub2ind([x_max_idx,y_max_idx], round(x_max_idx/2), 1);
-data_point_idc(7) = sub2ind([x_max_idx,y_max_idx], x_max_idx, 1);
-data_point_idc(8) = sub2ind([x_max_idx,y_max_idx], round(x_max_idx/2), round(y_max_idx/2));
-data_point_idc(9) = sub2ind([x_max_idx,y_max_idx], x_max_idx, round(y_max_idx/2));
-data_point_idc(10) = sub2ind([x_max_idx,y_max_idx], x_max_idx, y_max_idx);
-
-
-for i = 1:numel(data_point_idc)
-	data_points(i,:) = [plot_handles.surf.XData(data_point_idc(i)), ...
-	plot_handles.surf.YData(data_point_idc(i)), ...
-	plot_handles.surf.ZData(data_point_idc(i))];
-end
-
-plot_handles.cursor_manager = datacursormode(plot_handles.figure);
-plot_handles.cursor_manager.removeAllDataCursors
-plot_handles.cursor_manager.UpdateFcn = @(x,y) '';
-plot_handles.cursor = createDatatip(plot_handles.cursor_manager, ...
-	plot_handles.surf);
-plot_handles.cursor.MarkerEdgeColor = [1,1,1];
-plot_handles.cursor.MarkerFaceColor = [0,0,0];
-
-
-tmp_face_alpha = plot_handles.surf.FaceAlpha;
-tmp_edge_alpha = plot_handles.surf.EdgeAlpha;
-tmp_marker = plot_handles.surf.Marker;
-
-
-plot_handles.surf.FaceAlpha = 0;
-plot_handles.surf.EdgeAlpha = 0;
-plot_handles.surf.Marker = 'none';
-
-for i = 1:numel(data_point_idc)
+for i = 1:4
 	% setting cursor position
-	plot_handles.cursor.Position = data_points(i,:);
-	act_data_points(i,:) = plot_handles.cursor.Position;
+	plot_handles.support_plot.XData = tikz_support_points(i,1);
+	plot_handles.support_plot.YData = tikz_support_points(i,2);
+	plot_handles.support_plot.ZData = tikz_support_points(i,3);
 	
 	% create 2D image
 	frame_data = getframe(plot_handles.figure);
@@ -159,32 +251,34 @@ for i = 1:numel(data_point_idc)
 	flat_image_data = image_data(:,:,1)+image_data(:,:,2)+image_data(:,:,3);
 	
 	% find black rectangle
-% 	min_idc = find(flat_image_data(:) == min(flat_image_data(:)));
 	min_idc = find(flat_image_data(:) == 0);
 	[min_row, min_col] = ind2sub(size(flat_image_data), min_idc);
 	
 	% extract center point of black rectangle
-	
 	unique_min_row = unique(min_row);
 	unique_min_col = unique(min_col);
-	
 	mid_row_pixel(i) = round((max(unique_min_row) + min(unique_min_row))/2);
 	mid_col_pixel(i) = round((max(unique_min_col) + min(unique_min_col))/2);
-	
 end
 
 %tidy up
-plot_handles.cursor_manager.removeAllDataCursors
-plot_handles.surf.FaceAlpha = tmp_face_alpha;
-plot_handles.surf.EdgeAlpha = tmp_edge_alpha;
-plot_handles.surf.Marker = tmp_marker;
+for i=1:numel(plot_handles.axes.Children)	
+	plot_handles.axes.Children(i).Visible = 'on';
+end
+plot_handles.support_plot.Visible = 'off';
 
 if debug
 	plot_handles.cursor_manager.UpdateFcn = [];
 	
-	for i = 1:size(data_points,1)
-		debug_cursor = createDatatip(plot_handles.cursor_manager, plot_handles.surf);
-		debug_cursor.Position = data_points(i,:);
+	plot_handles.support_plot.XData = box_points(:,1);
+	plot_handles.support_plot.YData = box_points(:,2);
+	plot_handles.support_plot.ZData = box_points(:,3);	
+	plot_handles.support_plot.Visible = 'on';
+	
+	plot_handles.cursor_manager = datacursormode(plot_handles.figure);
+	for i = 1:4
+		debug_cursor = createDatatip(plot_handles.cursor_manager, plot_handles.support_plot);
+		debug_cursor.Position = tikz_support_points(i,:);
 	end
 	
 	debug_frame_data = getframe(plot_handles.figure);
@@ -192,7 +286,7 @@ if debug
 	
 	plot_handles.cursor_manager.removeAllDataCursors
 	
-	for i = 1:size(data_points,1)
+	for i = 1:4
 		debug_image_data(mid_row_pixel(i), mid_col_pixel(i), :) = 255*[1,1,1];
 	end
 	
@@ -214,6 +308,12 @@ if (cfg.write_png)
 	system(['mogrify -transparent white ', export_name, '.png']);
 end
 
+if isnan(colorbar_limits)
+	colorbar_limits = global_data_limits_z;
+end
+
+[~, export_fname, ~] = fileparts('../../LaTeX/wuff');
+
 % write to TikZ file
 if (cfg.write_tikz)
 	tfile_h = fopen([export_name, '.tikz'], 'w');
@@ -223,12 +323,12 @@ if (cfg.write_tikz)
 	fprintf(tfile_h, '\t \\begin{axis}[\n');
 	fprintf(tfile_h, '\t \t grid,\n');
 	fprintf(tfile_h, '\t \t enlargelimits = false,\n');
-	fprintf(tfile_h, '\t \t zmin = %f,\n', z_limits(1));
-	fprintf(tfile_h, '\t \t zmax = %f,\n', z_limits(2));
-	fprintf(tfile_h, '\t \t xmin = %f,\n', x_limits(1));
-	fprintf(tfile_h, '\t \t xmax = %f,\n', x_limits(2));
-	fprintf(tfile_h, '\t \t ymin = %f,\n', y_limits(1));
-	fprintf(tfile_h, '\t \t ymax = %f,\n', y_limits(2));
+	fprintf(tfile_h, '\t \t zmin = %f,\n', global_data_limits_z(1));
+	fprintf(tfile_h, '\t \t zmax = %f,\n', global_data_limits_z(2));
+	fprintf(tfile_h, '\t \t xmin = %f,\n', global_data_limits_x(1));
+	fprintf(tfile_h, '\t \t xmax = %f,\n', global_data_limits_x(2));
+	fprintf(tfile_h, '\t \t ymin = %f,\n', global_data_limits_y(1));
+	fprintf(tfile_h, '\t \t ymax = %f,\n', global_data_limits_y(2));
 	fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
 	fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
 	fprintf(tfile_h, '\t \t colorbar,\n');
@@ -240,14 +340,14 @@ if (cfg.write_tikz)
 	fprintf(tfile_h, '\t ]\n');
 	fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
 	fprintf(tfile_h, '\t \t \t points={%% important\n');
-	for i=1:size(data_points,1)
-		fprintf(tfile_h, '\t \t \t \t (%f,%f,%f) => (%f,%f)\n', act_data_points(i,1), ...
-			act_data_points(i,2), ...
-			act_data_points(i,3), ...
+	for i=1:size(tikz_support_points,1)
+		fprintf(tfile_h, '\t \t \t \t (%f,%f,%f) => (%f,%f)\n', tikz_support_points(i,1), ...
+			tikz_support_points(i,2), ...
+			tikz_support_points(i,3), ...
 			pt_point_positions(i,1), ...
 			pt_point_positions(i,2));
 	end
-	fprintf(tfile_h, '\t \t }]{%s.png};\n', export_name);
+	fprintf(tfile_h, '\t \t }]{%s.png};\n', export_fname);
 	fprintf(tfile_h, '\t \\end{axis}\n');
 	fprintf(tfile_h, '\\end{tikzpicture}');
 	fclose(tfile_h);
