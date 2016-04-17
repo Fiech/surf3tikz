@@ -8,7 +8,7 @@ surf3tikz is a MATLAB function that creates a TikZ+PNG file from a 3D plot.
 To achieve its goal, surf3tikz determines the corner points of the surrounding axes box and
 determines their pixel paper position later in the PNG file by placing markers on the points and
 then detecting the position in a temporary MATLAB image. surf3tikz tries to choose points that are
-in accordance with the needs of PGFPlots inner workings (see Theory chapter).
+in accordance with the needs of PGFPlots inner workings (see **Background Information** chapter).
 
 Additionally the key values are available as output parameters, so you can build your own TikZ file
 from scratch.
@@ -132,11 +132,24 @@ determining four points that fulfill the aforementioned constraints:
   unknown what happens if one chooses points this way. Therefore, for now this solution is not used
   in this function.
 
+### The issue with bird's eye views
+
+As of now this function does not has any special functionality to deal with bird's eye viewed plots,
+i.e. plots with 90° elevation. This is due to the importance that the z axis is exactly
+perpendicular to the viewing plane. Sometimes surf3tikz seems to work just fine, sometimes PGFPlots
+will throw a fit. Here are some notes on what I found out via testing:
+
+* PGFPlots sometimes has problems with fractional pt values. This function by default employs a
+  rounding functionality to round to the next full pt value. You might want to check the output of
+  the TikZ file an manually correct the values a bit, if two values that should have been the same
+  are one pt apart
+* If it does not work the first time, I had some luck manually resizing the figure and trying again.
+  Some aspect ratios seem to work just fine, others don't.
 
 ## General Notes
 
-* For now, if you try to run this script on a surf with a view of El=90°, PGFPlots will throw a
-  dimension error.
+* For now, if you try to run this script on a surf with a view of El=90°, PGFPlots will sometimes
+  throw a dimension error.
 * There is a point to be made to use imagesc instead of print in some situations. However, for now
   it's not implemented in this function yet.
 * The name surf3tikz seems strange, but was used to prevent naming conflicts with a similar script
