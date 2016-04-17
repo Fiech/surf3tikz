@@ -19,6 +19,9 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %      .box_point_idc: Indices of the box points to use (1-8). Normally it should be fine to just 
 %       let the algorithm choose these points. But you can try other combinations if you want for more
 %       information on how to choose these points see below in the code, default: []
+%      .force_exact_values: per default, surf3tikz will round the pt_point_positions to the first
+%       full pt, because otherwise the PGFPlot process seems to be stuck in certain cases. If you
+%       don't want surf3tikz to do this, set this parameter to true, default: false
 %   debug: boolean, will switch on/off an additional debug plot with the set cursors and the found 
 %          pixel positions denoted by a white pixel ideally in the middle of every black cursor 
 %          rectangle, default: false
@@ -69,6 +72,10 @@ end
 
 if ~isfield(cfg, 'box_point_idc')
 	cfg.box_point_idc = [];
+end
+
+if ~isfield(cfg, 'force_exact_values')
+	cfg.force_exact_values = false;
 end
 
 if nargin < 4
@@ -289,6 +296,9 @@ pgf_pixel_points = [mid_col_pixel, repmat(ysize,4,1)-mid_row_pixel];
 
 % calculate pts values
 pt_point_positions = pgf_pixel_points./cfg.screen_ppi./cfg.inch2point_ratio;
+if ~cfg.force_exact_values
+	pt_point_positions = round(pt_point_positions);
+end
 
 % Apparently PGFPlot is a bit picky about the first two points. It apparently works best if both 
 % pixel positions are different in the first two points. So let's look for a solution.
