@@ -136,15 +136,17 @@ determining four points that fulfill the aforementioned constraints:
 
 As of now this function does not has any special functionality to deal with bird's eye viewed plots,
 i.e. plots with 90° elevation. This is due to the importance that the z axis is exactly
-perpendicular to the viewing plane. Sometimes surf3tikz seems to work just fine, sometimes PGFPlots
-will throw a fit. Here are some notes on what I found out via testing:
+perpendicular to the viewing plane. Sometimes bird's eye view plots seems to work just fine,
+sometimes PGFPlots will throw a fit. Here are some notes on what I found out via testing:
 
+* Plots with El=90° and Az~=0° seem to be the main part of the problem.
 * PGFPlots sometimes has problems with fractional pt values. This function by default employs a
   rounding functionality to round to the next full pt value. You might want to check the output of
   the TikZ file an manually correct the values a bit, if two values that should have been the same
   are one pt apart
 * If it does not work the first time, I had some luck manually resizing the figure and trying again.
   Some aspect ratios seem to work just fine, others don't.
+
 
 ## General Notes
 
