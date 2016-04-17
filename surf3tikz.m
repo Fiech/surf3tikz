@@ -383,12 +383,12 @@ if (cfg.write_tikz)
 	fprintf(tfile_h, '\t \\begin{axis}[\n');
 	fprintf(tfile_h, '\t \t grid,\n');
 	fprintf(tfile_h, '\t \t enlargelimits = false,\n');
-	fprintf(tfile_h, '\t \t zmin = %f,\n', global_data_limits_z(1));
-	fprintf(tfile_h, '\t \t zmax = %f,\n', global_data_limits_z(2));
-	fprintf(tfile_h, '\t \t xmin = %f,\n', global_data_limits_x(1));
-	fprintf(tfile_h, '\t \t xmax = %f,\n', global_data_limits_x(2));
-	fprintf(tfile_h, '\t \t ymin = %f,\n', global_data_limits_y(1));
-	fprintf(tfile_h, '\t \t ymax = %f,\n', global_data_limits_y(2));
+	fprintf(tfile_h, '\t \t xmin = %f,\n', axes_limit_x(1));
+	fprintf(tfile_h, '\t \t xmax = %f,\n', axes_limit_x(2));
+	fprintf(tfile_h, '\t \t ymin = %f,\n', axes_limit_y(1));
+	fprintf(tfile_h, '\t \t ymax = %f,\n', axes_limit_y(2));
+	fprintf(tfile_h, '\t \t zmin = %f,\n', axes_limit_z(1));
+	fprintf(tfile_h, '\t \t zmax = %f,\n', axes_limit_z(2));
 	fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
 	fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
 	fprintf(tfile_h, '\t \t colorbar,\n');
