@@ -58,7 +58,7 @@ values seem to be (I'll update the list with more information as soon as I get i
 * 72 ppi
 
 There is a bit of information available about this topic in the MATLAB help page about
-[DPI-Aware Behavior in MATLAB][http://de.mathworks.com/help/matlab/creating_guis/dpi-aware-behavior-in-matlab.html].
+[DPI-Aware Behavior in MATLAB](http://de.mathworks.com/help/matlab/creating_guis/dpi-aware-behavior-in-matlab.html).
 
 
 ## Background Information
