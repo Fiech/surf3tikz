@@ -14,7 +14,7 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %      .write_png: boolean to optionally suppress png output, default: true
 %      .write_tikz: boolean to optionally suppress tikz file output, default: true
 %      .screen_ppi: pixel per inch screen resolution, default: will try to determine system setting 
-%       (normally 96)
+%       (likely values are 96 or 72)
 %      .inch2point_ratio: ratio of inch to point, default: 1/72 inch per point
 %      .box_point_idc: Indices of the box points to use (1-8). Normally it should be fine to just 
 %       let the algorithm choose these points. But you can try other combinations if you want for more
