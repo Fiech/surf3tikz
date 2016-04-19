@@ -16,12 +16,14 @@ from scratch.
 
 ## Usage
 
-**Notes of Importance:**
+### Notes of importance
+
 * This function was only tested with _Ubuntu Linux_ and _PGFPlots_ 2016/01/06 v1.13
 * To get rid of the white background of the PNG, the script makes a system call to _mogrify_, which is part
   of the _ImageMagick_ suite (ImageMagick 6.8.9-9 was used). If you cannot provide this program, you
   might want to do this step (white -> transparent) later on with an external program.
 
+### Using the function
 
 surf3tikz takes in between two and four input parameters:
 
@@ -39,6 +41,24 @@ separately via the config structure and instead use the data provided by the out
 
 For further information on the particulars of the in- and output parameters see the documentation
 within the file.
+
+The simplest way to use the function is to open your figure and choose a desired view. Then call the
+function with `gcf` for the first and an arbitrary name for the second parameter
+
+### Correct choice of screen ppi
+
+One of the most important parameters is the screen ppi setting. The function tries to automatically
+determine the correct setting, but I have found that MATLAB versions older than _2016a_ tend to get
+the wrong value from the corresponding `get` call.
+
+Before you give up or file a bug report, you may want to test some different values first. Likely
+values seem to be (I'll update the list with more information as soon as I get it):
+
+* 96 ppi
+* 72 ppi
+
+There is a bit of information available about this topic in the MATLAB help page about
+[DPI-Aware Behavior in MATLAB][http://de.mathworks.com/help/matlab/creating_guis/dpi-aware-behavior-in-matlab.html].
 
 
 ## Background Information
