@@ -372,7 +372,7 @@ if isnan(colorbar_limits)
 	colorbar_limits = global_data_limits_z;
 end
 
-[~, export_fname, ~] = fileparts('../../LaTeX/wuff');
+[~, export_fname, ~] = fileparts(export_name);
 
 % write to TikZ file
 if (cfg.write_tikz)
