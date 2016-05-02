@@ -15,6 +15,7 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %      .export_dpi: dpi of exported png file, default: 300 dpi
 %      .write_png: boolean to optionally suppress png output, default: true
 %      .write_tikz: boolean to optionally suppress tikz file output, default: true
+%      .write_fig: optional boolean to save the original figure as fig file, default: false
 %      .screen_ppi: pixel per inch screen resolution, default: will try to determine system setting
 %       (likely values are 96 or 72)
 %      .inch2point_ratio: ratio of inch to point, default: 1/72 inch per point
@@ -25,7 +26,7 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %       full pt, because otherwise the PGFPlot process seems to be stuck in certain cases. If you
 %       don't want surf3tikz to do this, set this parameter to true, default: false
 %      .force_3d: For special views (0,0), (180,0), (90,0), and (-90,0) instead of the 3D approach a
-%       2D approach is used. To force the use of the 3D approach set this to true.
+%       2D approach is used. To force the use of the 3D approach set this to true, default: false
 %   debug: boolean, will switch on/off an additional debug plot with the set cursors and the found
 %          pixel positions denoted by a white pixel ideally in the middle of every black cursor
 %          rectangle, default: false
@@ -64,6 +65,10 @@ end
 
 if ~isfield(cfg, 'write_tikz')
     cfg.write_tikz = true;
+end
+
+if ~isfield(cfg, 'write_fig')
+    cfg.write_fig = false;
 end
 
 if ~isfield(cfg, 'screen_ppi')
@@ -498,4 +503,9 @@ if (cfg.write_tikz)
 end
 
 close(plot_handles.figure)
+
+% optional, save the original figure if desired
+if cfg.write_fig
+    savefig(h_figure, [export_name, '.fig'])
+end
 end
