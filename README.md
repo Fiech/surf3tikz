@@ -22,6 +22,9 @@ from scratch.
 * To get rid of the white background of the PNG, the script makes a system call to _mogrify_, which is part
   of the _ImageMagick_ suite (ImageMagick 6.8.9-9 was used). If you cannot provide this program, you
   might want to do this step (white -> transparent) later on with an external program.
+* Per default, this function will produce a 2D plot rather than a 3D one, if only two of the three axes
+  are visible. This is also due to the unstable behaviour in cases of top down (bird's eye view)
+  viewing angles.
 
 ### Using the function
 
@@ -43,7 +46,7 @@ For further information on the particulars of the in- and output parameters see 
 within the file.
 
 The simplest way to use the function is to open your figure and choose a desired view. Then call the
-function with `gcf` for the first and an arbitrary name for the second parameter
+function with `gcf` for the first and an arbitrary name for the second parameter.
 
 ### Correct choice of screen ppi
 
@@ -92,7 +95,7 @@ PGFPlots has very specific needs when it comes to support points to determine th
 axes. The following assumptions have been made with much black box testing and data examination:
 
 * More than four points do nothing to help recover from an already bad choice of points. Moreso,
-  there seems to be no influence from all points beyond the first four.
+  there seems to be no influence from any point beyond the first four.
 * The pt-positions of the first two points should differ in both directions to get a more consistent,
   instead of just the Y coordinate, as PGFPlots suggests in its error message.
 * Within this set of points, for each data domain dimension (X,Y,Z), there has to be at least one set
