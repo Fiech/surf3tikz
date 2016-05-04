@@ -50,7 +50,7 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 
 %% basic input argument handling
 if nargin < 2
-    error('You''ll need to specify a figure handle and an export base filename');
+    error('You''ll need to specify a figure handle and an export base filename!');
 end
 
 if nargin < 3
@@ -313,7 +313,7 @@ else
         elseif numel(unique(ubp_rev_idc(box_point_sets(2,:)))) == 4
             tikz_support_points = box_points(box_point_sets(2,:),:);
         else
-            error('Neither of the proposed point trains seem to work, could not find 4 visibile points...');
+            error('Neither of the proposed point trains seem to work, could not find 4 viable points...');
         end
     end
     
