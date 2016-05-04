@@ -3,8 +3,10 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 % This function takes a figure containing a surf plot and creates a tikz file and an according png
 % file. To achieve this, it automatically places data markers on points of the axes box around
 % the plot and subsequently detects their pixel position.
-% For special views (0,0), (180,0), (90,0), and (-90,0) a 2D approach is used which uses a much
-% simpler approach.
+% For views (0,0), (180,0), (90,0), and (-90,0) a simpler approach is used which creates
+% a 2D plot in TikZ, instead of a 3D one. This is done to prevent unstable behaviour because of
+% imperfect point positions that especially occur in 90° elevation (bird's view) cases. This
+% behavior can be suppressed.
 % Additionally the key values are available as output parameters to build your own tikz file from
 % scratch.
 %
