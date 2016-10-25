@@ -243,7 +243,33 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
             img_rev = true;
         end
     else
-        error('imagesc not yet implemented!')
+        % only a quick-and-dirty solution, solve this with imagesc way
+        if current_view_point(1) == 0 && current_view_point(2) == 90
+            img_x(1) = max(axes_limit_x(1), global_data_limits_x(1));
+            img_x(2) = min(axes_limit_x(2), global_data_limits_x(2));
+            img_x(3:4) = axes_limit_x;
+            img_y(1) = max(axes_limit_y(1), global_data_limits_y(1));
+            img_y(2) = min(axes_limit_y(2), global_data_limits_y(2));
+            img_y(3:4) = axes_limit_y;
+            img_rev = false;
+        elseif (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
+            % y-x view selected and -y-x view selected (reverse axis)
+            img_x(1) = max(axes_limit_y(1), global_data_limits_y(1));
+            img_x(2) = min(axes_limit_y(2), global_data_limits_y(2));
+            img_x(3:4) = axes_limit_y;
+            img_y(1) = max(axes_limit_x(1), global_data_limits_x(1));
+            img_y(2) = min(axes_limit_x(2), global_data_limits_x(2));
+            img_y(3:4) = axes_limit_x;
+            
+            if current_view_point(1) == 90 && current_view_point(2) == -90
+                img_rev = false;
+            else
+                % -y-x view selected
+                img_rev = true;
+            end
+        else
+            error('imagesc not yet implemented!')
+        end
     end
     
     % point positions doesn't make sense
@@ -472,8 +498,15 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t zmin = %f,\n', axes_limit_z(1));
         fprintf(tfile_h, '\t \t zmax = %f,\n', axes_limit_z(2));
     end
-    fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
-    fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
+    
+    if (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', ylabel_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', xlabel_txt);
+    else
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
+    end
+    
     fprintf(tfile_h, '\t \t colorbar,\n');
     if isequal(plot_handles.figure.Colormap, parula)
         fprintf(tfile_h, '\t \t colormap name=parula,\n');
