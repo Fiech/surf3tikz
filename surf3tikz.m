@@ -136,67 +136,38 @@ axes_limit_y = plot_handles.axes.YLim;
 axes_limit_z = plot_handles.axes.ZLim;
 
 % find limits of all the plot objects of the current axes
-global_data_limits_x = [Inf, -Inf];
-global_data_limits_y = [Inf, -Inf];
-global_data_limits_z = [Inf, -Inf];
+
+[data_limits_x, data_limits_y, data_limits_z] = get_data_limits(plot_handles.axes);
 
 for i=1:numel(plot_handles.axes.Children)
-    data_limits_x(1) = min(plot_handles.axes.Children(i).XData(:));
-    data_limits_x(2) = max(plot_handles.axes.Children(i).XData(:));
-    data_limits_y(1) = min(plot_handles.axes.Children(i).YData(:));
-    data_limits_y(2) = max(plot_handles.axes.Children(i).YData(:));
-    data_limits_z(1) = min(plot_handles.axes.Children(i).ZData(:));
-    data_limits_z(2) = max(plot_handles.axes.Children(i).ZData(:));
-    
-    if data_limits_x(1) < global_data_limits_x(1)
-        global_data_limits_x(1) = data_limits_x(1);
-    end
-    if data_limits_x(2) > global_data_limits_x(2)
-        global_data_limits_x(2) = data_limits_x(2);
-    end
-    
-    if data_limits_y(1) < global_data_limits_y(1)
-        global_data_limits_y(1) = data_limits_y(1);
-    end
-    if data_limits_y(2) > global_data_limits_y(2)
-        global_data_limits_y(2) = data_limits_y(2);
-    end
-    
-    if data_limits_z(1) < global_data_limits_z(1)
-        global_data_limits_z(1) = data_limits_z(1);
-    end
-    if data_limits_z(2) > global_data_limits_z(2)
-        global_data_limits_z(2) = data_limits_z(2);
-    end
-    
-    plot_handles.axes.Children(i).Visible = 'off';
+    plot_handles.axes.Children.Visible = 'off';
 end
 
 % use auto mode value for axes where neccessary
 if isinf(axes_limit_x(1))
-    axes_limit_x(1) = global_data_limits_x(1);
+    axes_limit_x(1) = data_limits_x(1);
     plot_handles.axes.XLim = axes_limit_x;
 end
 if isinf(axes_limit_x(2))
-    axes_limit_x(2) = global_data_limits_x(2);
+    axes_limit_x(2) = data_limits_x(2);
     plot_handles.axes.XLim = axes_limit_x;
 end
 
 if isinf(axes_limit_y(1))
-    axes_limit_y(1) = global_data_limits_y(1);
+    axes_limit_y(1) = data_limits_y(1);
     plot_handles.axes.YLim = axes_limit_y;
 end
 if isinf(axes_limit_y(2))
-    axes_limit_y(2) = global_data_limits_y(2);
+    axes_limit_y(2) = data_limits_y(2);
     plot_handles.axes.YLim = axes_limit_y;
 end
 
 if isinf(axes_limit_z(1))
-    axes_limit_z(1) = global_data_limits_z(1);
+    axes_limit_z(1) = data_limits_z(1);
     plot_handles.axes.ZLim = axes_limit_z;
 end
 if isinf(axes_limit_z(2))
-    axes_limit_z(2) = global_data_limits_z(2);
+    axes_limit_z(2) = data_limits_z(2);
     plot_handles.axes.ZLim = axes_limit_z;
 end
 
@@ -220,11 +191,11 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     % must be taken into account for a correct axis label estimation
     if (current_view_point(1) == 0 || current_view_point(1) == 180) && current_view_point(2) == 0
         % x-z view selected
-        img_x(1) = max(axes_limit_x(1), global_data_limits_x(1));
-        img_x(2) = min(axes_limit_x(2), global_data_limits_x(2));
+        img_x(1) = max(axes_limit_x(1), data_limits_x(1));
+        img_x(2) = min(axes_limit_x(2), data_limits_x(2));
         img_x(3:4) = axes_limit_x;
-        img_y(1) = max(axes_limit_z(1), global_data_limits_z(1));
-        img_y(2) = min(axes_limit_z(2), global_data_limits_z(2));
+        img_y(1) = max(axes_limit_z(1), data_limits_z(1));
+        img_y(2) = min(axes_limit_z(2), data_limits_z(2));
         img_y(3:4) = axes_limit_z;
         img_rev = false;
         if current_view_point(1) == 180
@@ -232,11 +203,11 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
         end
     elseif (current_view_point(1) == 90 || current_view_point(1) == -90) && current_view_point(2) == 0
         % y-z view selected
-        img_x(1) = max(axes_limit_y(1), global_data_limits_y(1));
-        img_x(2) = min(axes_limit_y(2), global_data_limits_y(2));
+        img_x(1) = max(axes_limit_y(1), data_limits_y(1));
+        img_x(2) = min(axes_limit_y(2), data_limits_y(2));
         img_x(3:4) = axes_limit_y;
-        img_y(1) = max(axes_limit_z(1), global_data_limits_z(1));
-        img_y(2) = min(axes_limit_z(2), global_data_limits_z(2));
+        img_y(1) = max(axes_limit_z(1), data_limits_z(1));
+        img_y(2) = min(axes_limit_z(2), data_limits_z(2));
         img_y(3:4) = axes_limit_z;
         img_rev = false;
         if current_view_point(1) == -90
@@ -245,20 +216,20 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     else
         % only a quick-and-dirty solution, solve this with imagesc way
         if current_view_point(1) == 0 && current_view_point(2) == 90
-            img_x(1) = max(axes_limit_x(1), global_data_limits_x(1));
-            img_x(2) = min(axes_limit_x(2), global_data_limits_x(2));
+            img_x(1) = max(axes_limit_x(1), data_limits_x(1));
+            img_x(2) = min(axes_limit_x(2), data_limits_x(2));
             img_x(3:4) = axes_limit_x;
-            img_y(1) = max(axes_limit_y(1), global_data_limits_y(1));
-            img_y(2) = min(axes_limit_y(2), global_data_limits_y(2));
+            img_y(1) = max(axes_limit_y(1), data_limits_y(1));
+            img_y(2) = min(axes_limit_y(2), data_limits_y(2));
             img_y(3:4) = axes_limit_y;
             img_rev = false;
         elseif (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
             % y-x view selected and -y-x view selected (reverse axis)
-            img_x(1) = max(axes_limit_y(1), global_data_limits_y(1));
-            img_x(2) = min(axes_limit_y(2), global_data_limits_y(2));
+            img_x(1) = max(axes_limit_y(1), data_limits_y(1));
+            img_x(2) = min(axes_limit_y(2), data_limits_y(2));
             img_x(3:4) = axes_limit_y;
-            img_y(1) = max(axes_limit_x(1), global_data_limits_x(1));
-            img_y(2) = min(axes_limit_x(2), global_data_limits_x(2));
+            img_y(1) = max(axes_limit_x(1), data_limits_x(1));
+            img_y(2) = min(axes_limit_x(2), data_limits_x(2));
             img_y(3:4) = axes_limit_x;
             
             if current_view_point(1) == 90 && current_view_point(2) == -90
@@ -466,7 +437,7 @@ if (cfg.write_png)
 end
 
 if isnan(colorbar_limits)
-    colorbar_limits = global_data_limits_z;
+    colorbar_limits = data_limits_z;
 end
 
 [~, export_fname, ~] = fileparts(export_name);
