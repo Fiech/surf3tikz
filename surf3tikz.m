@@ -131,49 +131,16 @@ ylabel_txt = plot_handles.axes.YLabel.String;
 
 
 %% find axes limits and explicitly set them
-axes_limit_x = plot_handles.axes.XLim;
-axes_limit_y = plot_handles.axes.YLim;
-axes_limit_z = plot_handles.axes.ZLim;
 
-% find limits of all the plot objects of the current axes
-
-[data_limits_x, data_limits_y, data_limits_z] = get_data_limits(plot_handles.axes);
-
-for i=1:numel(plot_handles.axes.Children)
-    plot_handles.axes.Children.Visible = 'off';
-end
-
-% use auto mode value for axes where neccessary
-if isinf(axes_limit_x(1))
-    axes_limit_x(1) = data_limits_x(1);
-    plot_handles.axes.XLim = axes_limit_x;
-end
-if isinf(axes_limit_x(2))
-    axes_limit_x(2) = data_limits_x(2);
-    plot_handles.axes.XLim = axes_limit_x;
-end
-
-if isinf(axes_limit_y(1))
-    axes_limit_y(1) = data_limits_y(1);
-    plot_handles.axes.YLim = axes_limit_y;
-end
-if isinf(axes_limit_y(2))
-    axes_limit_y(2) = data_limits_y(2);
-    plot_handles.axes.YLim = axes_limit_y;
-end
-
-if isinf(axes_limit_z(1))
-    axes_limit_z(1) = data_limits_z(1);
-    plot_handles.axes.ZLim = axes_limit_z;
-end
-if isinf(axes_limit_z(2))
-    axes_limit_z(2) = data_limits_z(2);
-    plot_handles.axes.ZLim = axes_limit_z;
-end
+[axes_limit_x, axes_limit_y, axes_limit_z, c_data_limits] = get_axes_limits(plot_handles.axes);
 
 plot_handles.axes.XLim = axes_limit_x;
 plot_handles.axes.YLim = axes_limit_y;
 plot_handles.axes.ZLim = axes_limit_z;
+
+if isnan(colorbar_limits)
+    colorbar_limits = c_data_limits;
+end
 
 
 %% decide if the three dimensional approach or the easy two dimensional one is neccessary
@@ -316,6 +283,12 @@ else
     
     
     %% draw support markers and determine paper position
+    
+    % first, hide all other plots
+    for i=1:numel(plot_handles.axes.Children)
+        plot_handles.axes.Children(i).Visible = 'off';
+    end
+    
     % prepare marker handle for paper position determination
     hold(plot_handles.axes, 'on');
     plot_handles.support_plot = plot3(plot_handles.axes, nan, nan, nan, ...
@@ -434,10 +407,6 @@ if (cfg.write_png)
     if plot2d
         system(['mogrify -trim ', export_name, '.png']);
     end
-end
-
-if isnan(colorbar_limits)
-    colorbar_limits = data_limits_z;
 end
 
 [~, export_fname, ~] = fileparts(export_name);
@@ -559,5 +528,39 @@ for i=1:numel(axes.Children)
         global_data_limits_z(2) = data_limits_z(2);
     end
 end
+
+end
+
+function [ axes_limit_x, axes_limit_y, axes_limit_z, c_data_limits ] = get_axes_limits( axes )
+axes_limit_x = axes.XLim;
+axes_limit_y = axes.YLim;
+axes_limit_z = axes.ZLim;
+
+
+[data_limits_x, data_limits_y, data_limits_z] = get_data_limits(axes);
+
+% use auto mode value for axes where neccessary
+if isinf(axes_limit_x(1))
+    axes_limit_x(1) = data_limits_x(1);
+end
+if isinf(axes_limit_x(2))
+    axes_limit_x(2) = data_limits_x(2);
+end
+
+if isinf(axes_limit_y(1))
+    axes_limit_y(1) = data_limits_y(1);
+end
+if isinf(axes_limit_y(2))
+    axes_limit_y(2) = data_limits_y(2);
+end
+
+if isinf(axes_limit_z(1))
+    axes_limit_z(1) = data_limits_z(1);
+end
+if isinf(axes_limit_z(2))
+    axes_limit_z(2) = data_limits_z(2);
+end
+
+c_data_limits = axes_limit_z;
 
 end
