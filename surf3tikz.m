@@ -126,9 +126,6 @@ while true
     i = i+1;
 end
 
-xlabel_txt = plot_handles.axes.XLabel.String{1};
-ylabel_txt = plot_handles.axes.YLabel.String{1};
-
 
 %% find axes limits and explicitly set them
 
@@ -176,9 +173,15 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     
     % this is just xmin, xmax, ymin, and ymax
     tikz_support_points = [img_data_x, img_data_y];
+    
+    labels_txt = {plot_handles.axes.XLabel.String{1},plot_handles.axes.YLabel.String{1},plot_handles.axes.ZLabel.String{1}};
+    xlabel_txt = labels_txt{abs(horz)};
+    ylabel_txt = labels_txt{abs(vert)};
 else
     plot2d = false;
-    
+    xlabel_txt = plot_handles.axes.XLabel.String{1};
+    ylabel_txt = plot_handles.axes.YLabel.String{1};
+    zlabel_txt = plot_handles.axes.ZLabel.String{1};
     
     %% choosing tikz support points
     % determine axes box outer points
@@ -269,7 +272,6 @@ else
         plot_handles.support_plot.XData = tikz_support_points(i,1);
         plot_handles.support_plot.YData = tikz_support_points(i,2);
         plot_handles.support_plot.ZData = tikz_support_points(i,3);
-        
         % create 2D image
         frame_data = getframe(plot_handles.figure);
         [image_data,~] = frame2im(frame_data);
@@ -393,6 +395,8 @@ if (cfg.write_tikz)
         if img_y_reversed
             fprintf(tfile_h, '\t \t y dir = reverse,\n');
         end
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
     else
         
         fprintf(tfile_h, '\t \t xmin = %f,\n', axes_x(1));
@@ -401,14 +405,13 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t ymax = %f,\n', axes_y(2));
         fprintf(tfile_h, '\t \t zmin = %f,\n', axes_z(1));
         fprintf(tfile_h, '\t \t zmax = %f,\n', axes_z(2));
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
+        fprintf(tfile_h, '\t \t zlabel = {%s},\n', zlabel_txt);
     end
     
     if (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
-        fprintf(tfile_h, '\t \t xlabel = {%s},\n', ylabel_txt);
-        fprintf(tfile_h, '\t \t ylabel = {%s},\n', xlabel_txt);
     else
-        fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
-        fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
     end
     
     fprintf(tfile_h, '\t \t colorbar,\n');
