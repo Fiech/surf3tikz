@@ -126,8 +126,8 @@ while true
     i = i+1;
 end
 
-xlabel_txt = plot_handles.axes.XLabel.String;
-ylabel_txt = plot_handles.axes.YLabel.String;
+xlabel_txt = plot_handles.axes.XLabel.String{1};
+ylabel_txt = plot_handles.axes.YLabel.String{1};
 
 
 %% find axes limits and explicitly set them
@@ -156,33 +156,20 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     % For an easy work flow the PNG file is trimed (the whitespace is
     % removed), hence the axis / xlim options and the real x,y,z values
     % must be taken into account for a correct axis label estimation
-    if (current_view_point(1) == 0 || current_view_point(1) == 180) && current_view_point(2) == 0
-        % x-z view selected
-        img_data_x = [v_data_x, v_data_x]';
-        img_data_y = [v_data_z, v_data_z]';
-        img_axes_x = axes_x;
-        img_axes_y = axes_z;
-        img_x_reversed = (current_view_point(1) == 180);
-        img_y_reversed = false;
-    elseif (current_view_point(1) == 90 || current_view_point(1) == -90) && current_view_point(2) == 0
-        % y-z view selected
-        img_data_x = [v_data_y, v_data_y]';
-        img_data_y = [v_data_z, v_data_z]';
-        img_axes_x = axes_y;
-        img_axes_y = axes_z;
-        img_x_reversed = (current_view_point(1) == -90);
-        img_y_reversed = false;
-    elseif (current_view_point(1) == 0 || current_view_point(1) == 180) && (current_view_point(2) == 90 || current_view_point(2) == -90)
-        % x-y view selected
-        img_data_x = [v_data_x, v_data_x]';
-        img_data_y = [v_data_y, v_data_y]';
-        img_axes_x = axes_x;
-        img_axes_y = axes_y;
-        img_x_reversed = (current_view_point(1) == 180);
-        img_y_reversed = (current_view_point(2) == -90);
-    else
-        error('No process yet for 2D and Az=%d, El=%d', current_view_point);
-    end
+    
+    con_axes = [axes_x; axes_y; axes_z];
+    con_v_data = [v_data_x; v_data_y; v_data_z];
+
+    [horz, vert] = viewpoint_to_img_axes( current_view_point );
+    
+    img_data_x = con_v_data(abs(horz),:)';
+    img_data_y = con_v_data(abs(vert),:)';
+    
+    img_axes_x = con_axes(abs(horz),:);
+    img_axes_y = con_axes(abs(vert),:);
+    
+    img_x_reversed = (horz < 0);
+    img_y_reversed = (vert < 0);
     
     % point positions doesn't make sense
     pt_point_positions = [];
@@ -545,3 +532,44 @@ v_data_y = [max(axes_y(1), data_limit_y(1)), min(axes_y(2), data_limit_y(2))];
 v_data_z = [max(axes_z(1), data_limit_z(1)), min(axes_z(2), data_limit_z(2))];
 
 end
+
+function [ horz, vert ] = viewpoint_to_img_axes( viewpoint )
+
+viewpoint = wrapTo180(viewpoint);
+
+az = viewpoint(1);
+el = viewpoint(2);
+
+x = 1;
+y = 2;
+z = 3;
+
+if sum(mod(viewpoint,90)) 
+    error('No process yet for 2D and Az=%d, El=%d', current_view_point);
+end
+
+if abs(az) == abs(el) && abs(el) == 90
+    horz = sign(az)*y;
+    vert = sign(el)*x;
+else
+    if abs(az) == 90
+        horz = sign(az)*y;
+    elseif abs(az) == 180
+        horz = -x;
+    else
+        horz = x;
+    end
+    if abs(el) == 90
+        vert = sign(el)*y;
+    elseif abs(el) == 180
+        vert = -z;
+    else
+        vert = z;
+    end
+end
+
+end
+
+
+
+
