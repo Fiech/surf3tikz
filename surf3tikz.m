@@ -29,6 +29,8 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %       don't want surf3tikz to do this, set this parameter to true, default: false
 %      .force_3d: For special views (0,0), (180,0), (90,0), and (-90,0) instead of the 3D approach a
 %       2D approach is used. To force the use of the 3D approach set this to true, default: false
+%      .use_imagesc: For 2D views, imagesc can be used as a way to save some space for the image
+%       file, default: false, WARNING: EXPERIMENTAL AND NOT YET IMPLEMENTED FOR MULTI-SURF
 %   debug: boolean, will switch on/off an additional debug plot with the set cursors and the found
 %          pixel positions denoted by a white pixel ideally in the middle of every black cursor
 %          rectangle, default: false
@@ -93,6 +95,10 @@ if ~isfield(cfg, 'force_3d')
     cfg.force_3d = false;
 end
 
+if ~isfield(cfg, 'use_imagesc')
+    cfg.use_imagesc = false;
+end
+
 if nargin < 4
     debug = false;
 end
@@ -126,6 +132,19 @@ while true
     i = i+1;
 end
 
+xlabel_txt = '';
+ylabel_txt = '';
+zlabel_txt = '';
+if ~isempty(plot_handles.axes.XLabel.String)
+    xlabel_txt = plot_handles.axes.XLabel.String{1};
+end
+if ~isempty(plot_handles.axes.YLabel.String)
+    ylabel_txt = plot_handles.axes.YLabel.String{1};
+end
+if ~isempty(plot_handles.axes.ZLabel.String)
+    zlabel_txt = plot_handles.axes.ZLabel.String{1};
+end
+
 
 %% find axes limits and explicitly set them
 
@@ -142,6 +161,7 @@ end
 
 %% decide if the three dimensional approach or the easy two dimensional one is neccessary
 current_view_point = plot_handles.axes.View;
+use_imagesc = false;
 
 if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     plot2d = true;
@@ -174,14 +194,16 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     % this is just xmin, xmax, ymin, and ymax
     tikz_support_points = [img_data_x, img_data_y];
     
-    labels_txt = {plot_handles.axes.XLabel.String{1},plot_handles.axes.YLabel.String{1},plot_handles.axes.ZLabel.String{1}};
+    labels_txt = {xlabel_txt, ylabel_txt, zlabel_txt};
     xlabel_txt = labels_txt{abs(horz)};
     ylabel_txt = labels_txt{abs(vert)};
+    
+    if cfg.use_imagesc && abs(horz) < 3 && abs(vert) < 3
+        % we are top down and can use imagesc if the user wants it
+        use_imagesc = true;
+    end
 else
     plot2d = false;
-    xlabel_txt = plot_handles.axes.XLabel.String{1};
-    ylabel_txt = plot_handles.axes.YLabel.String{1};
-    zlabel_txt = plot_handles.axes.ZLabel.String{1};
     
     %% choosing tikz support points
     % determine axes box outer points
@@ -365,10 +387,27 @@ end
 
 % print png and make transparent
 if (cfg.write_png)
-    print(plot_handles.figure, export_name, '-dpng', ['-r' num2str(cfg.export_dpi)]);
-    system(['mogrify -transparent white ', export_name, '.png']);
-    if plot2d
-        system(['mogrify -trim ', export_name, '.png']);
+    if use_imagesc
+        cdata = plot_handles.axes.Children(1).CData;
+        if horz ~= 1
+            cdata = cdata';
+        end
+        if horz < 0
+            cdata = cdata(:,end:-1:1);
+        end
+        if vert < 0
+            cdata = cdata(end:-1:1,:);
+        end
+%         if 
+        cmap = plot_handles.figure.Colormap;
+        im_scaled = round((cdata(end:-1:1,:)-min(cdata(:)))./(max(cdata(:))-min(cdata(:)))*size(cmap,1));
+        imwrite(im_scaled, cmap, [export_name, '.png'], 'png')
+    else
+        print(plot_handles.figure, export_name, '-dpng', ['-r' num2str(cfg.export_dpi)]);
+        system(['mogrify -transparent white ', export_name, '.png']);
+        if plot2d
+            system(['mogrify -trim ', export_name, '.png']);
+        end
     end
 end
 
@@ -501,6 +540,7 @@ end
 
 function [ axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z ] = get_plot_limits( axes )
 %GET_PLOT_LIMITS returns the effective axes limits, as well as the limits of the visible data
+
 axes_x = axes.XLim;
 axes_y = axes.YLim;
 axes_z = axes.ZLim;
@@ -537,6 +577,8 @@ v_data_z = [max(axes_z(1), data_limit_z(1)), min(axes_z(2), data_limit_z(2))];
 end
 
 function [ horz, vert ] = viewpoint_to_img_axes( viewpoint )
+%VIEPOINT_TO_IMG_AXES converts a figure viewport to a 2D image (X,Y) CS
+% returns the horizontal and vertical dimension (x=1, y=2, z=3)
 
 viewpoint = wrapTo180(viewpoint);
 
@@ -553,7 +595,7 @@ end
 
 if abs(az) == abs(el) && abs(el) == 90
     horz = sign(az)*y;
-    vert = sign(el)*x;
+    vert = -1*sign(az)*sign(el)*x;
 else
     if abs(az) == 90
         horz = sign(az)*y;
@@ -563,16 +605,12 @@ else
         horz = x;
     end
     if abs(el) == 90
-        vert = sign(el)*y;
+        vert = sign(horz)*sign(el)*y;
     elseif abs(el) == 180
-        vert = -z;
+        vert = -1*z;
     else
         vert = z;
     end
 end
 
 end
-
-
-
-
