@@ -132,14 +132,14 @@ ylabel_txt = plot_handles.axes.YLabel.String;
 
 %% find axes limits and explicitly set them
 
-[axes_limit_x, axes_limit_y, axes_limit_z, c_data_limits] = get_axes_limits(plot_handles.axes);
+[axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z] = get_plot_limits(plot_handles.axes);
 
-plot_handles.axes.XLim = axes_limit_x;
-plot_handles.axes.YLim = axes_limit_y;
-plot_handles.axes.ZLim = axes_limit_z;
+plot_handles.axes.XLim = axes_x;
+plot_handles.axes.YLim = axes_y;
+plot_handles.axes.ZLim = axes_z;
 
 if isnan(colorbar_limits)
-    colorbar_limits = c_data_limits;
+    colorbar_limits = v_data_z;
 end
 
 
@@ -149,7 +149,7 @@ current_view_point = plot_handles.axes.View;
 if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     plot2d = true;
     % basic idea:
-    % for those special views (0,0), (180,0), (90,0), and (-90,0) no 3D
+    % for those special views (0,0), (180,0), (90,0), (-90,0),  (0,90), and (-90,90) no 3D
     % approach is necessary. A PNG file is saved and one has to specify the
     % coordinates of the lower left and the upper right point. This is done
     % in the following.
@@ -158,63 +158,37 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     % must be taken into account for a correct axis label estimation
     if (current_view_point(1) == 0 || current_view_point(1) == 180) && current_view_point(2) == 0
         % x-z view selected
-        img_x(1) = max(axes_limit_x(1), data_limits_x(1));
-        img_x(2) = min(axes_limit_x(2), data_limits_x(2));
-        img_x(3:4) = axes_limit_x;
-        img_y(1) = max(axes_limit_z(1), data_limits_z(1));
-        img_y(2) = min(axes_limit_z(2), data_limits_z(2));
-        img_y(3:4) = axes_limit_z;
-        img_rev = false;
-        if current_view_point(1) == 180
-            img_rev = true;
-        end
+        img_data_x = [v_data_x, v_data_x]';
+        img_data_y = [v_data_z, v_data_z]';
+        img_axes_x = axes_x;
+        img_axes_y = axes_z;
+        img_x_reversed = (current_view_point(1) == 180);
+        img_y_reversed = false;
     elseif (current_view_point(1) == 90 || current_view_point(1) == -90) && current_view_point(2) == 0
         % y-z view selected
-        img_x(1) = max(axes_limit_y(1), data_limits_y(1));
-        img_x(2) = min(axes_limit_y(2), data_limits_y(2));
-        img_x(3:4) = axes_limit_y;
-        img_y(1) = max(axes_limit_z(1), data_limits_z(1));
-        img_y(2) = min(axes_limit_z(2), data_limits_z(2));
-        img_y(3:4) = axes_limit_z;
-        img_rev = false;
-        if current_view_point(1) == -90
-            img_rev = true;
-        end
+        img_data_x = [v_data_y, v_data_y]';
+        img_data_y = [v_data_z, v_data_z]';
+        img_axes_x = axes_y;
+        img_axes_y = axes_z;
+        img_x_reversed = (current_view_point(1) == -90);
+        img_y_reversed = false;
+    elseif (current_view_point(1) == 0 || current_view_point(1) == 180) && (current_view_point(2) == 90 || current_view_point(2) == -90)
+        % x-y view selected
+        img_data_x = [v_data_x, v_data_x]';
+        img_data_y = [v_data_y, v_data_y]';
+        img_axes_x = axes_x;
+        img_axes_y = axes_y;
+        img_x_reversed = (current_view_point(1) == 180);
+        img_y_reversed = (current_view_point(2) == -90);
     else
-        % only a quick-and-dirty solution, solve this with imagesc way
-        if current_view_point(1) == 0 && current_view_point(2) == 90
-            img_x(1) = max(axes_limit_x(1), data_limits_x(1));
-            img_x(2) = min(axes_limit_x(2), data_limits_x(2));
-            img_x(3:4) = axes_limit_x;
-            img_y(1) = max(axes_limit_y(1), data_limits_y(1));
-            img_y(2) = min(axes_limit_y(2), data_limits_y(2));
-            img_y(3:4) = axes_limit_y;
-            img_rev = false;
-        elseif (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
-            % y-x view selected and -y-x view selected (reverse axis)
-            img_x(1) = max(axes_limit_y(1), data_limits_y(1));
-            img_x(2) = min(axes_limit_y(2), data_limits_y(2));
-            img_x(3:4) = axes_limit_y;
-            img_y(1) = max(axes_limit_x(1), data_limits_x(1));
-            img_y(2) = min(axes_limit_x(2), data_limits_x(2));
-            img_y(3:4) = axes_limit_x;
-            
-            if current_view_point(1) == 90 && current_view_point(2) == -90
-                img_rev = false;
-            else
-                % -y-x view selected
-                img_rev = true;
-            end
-        else
-            error('imagesc not yet implemented!')
-        end
+        error('No process yet for 2D and Az=%d, El=%d', current_view_point);
     end
     
     % point positions doesn't make sense
     pt_point_positions = [];
     
     % this is just xmin, xmax, ymin, and ymax
-    tikz_support_points = [img_x, img_y];
+    tikz_support_points = [img_data_x, img_data_y];
 else
     plot2d = false;
     
@@ -222,14 +196,14 @@ else
     %% choosing tikz support points
     % determine axes box outer points
     box_points = nan(8,3);
-    box_points(1,:) = [axes_limit_x(1),axes_limit_y(1),axes_limit_z(1)];
-    box_points(2,:) = [axes_limit_x(1),axes_limit_y(1),axes_limit_z(2)];
-    box_points(3,:) = [axes_limit_x(1),axes_limit_y(2),axes_limit_z(1)];
-    box_points(4,:) = [axes_limit_x(1),axes_limit_y(2),axes_limit_z(2)];
-    box_points(5,:) = [axes_limit_x(2),axes_limit_y(1),axes_limit_z(1)];
-    box_points(6,:) = [axes_limit_x(2),axes_limit_y(1),axes_limit_z(2)];
-    box_points(7,:) = [axes_limit_x(2),axes_limit_y(2),axes_limit_z(1)];
-    box_points(8,:) = [axes_limit_x(2),axes_limit_y(2),axes_limit_z(2)];
+    box_points(1,:) = [axes_x(1),axes_y(1),axes_z(1)];
+    box_points(2,:) = [axes_x(1),axes_y(1),axes_z(2)];
+    box_points(3,:) = [axes_x(1),axes_y(2),axes_z(1)];
+    box_points(4,:) = [axes_x(1),axes_y(2),axes_z(2)];
+    box_points(5,:) = [axes_x(2),axes_y(1),axes_z(1)];
+    box_points(6,:) = [axes_x(2),axes_y(1),axes_z(2)];
+    box_points(7,:) = [axes_x(2),axes_y(2),axes_z(1)];
+    box_points(8,:) = [axes_x(2),axes_y(2),axes_z(2)];
     
     % rotate box points and find out which points lie on top of each other
     
@@ -422,21 +396,24 @@ if (cfg.write_tikz)
     fprintf(tfile_h, '\t \t enlargelimits = false,\n');
     
     if plot2d
-        fprintf(tfile_h, '\t \t xmin = %f,\n', img_x(3));
-        fprintf(tfile_h, '\t \t xmax = %f,\n', img_x(4));
-        fprintf(tfile_h, '\t \t ymin = %f,\n', img_y(3));
-        fprintf(tfile_h, '\t \t ymax = %f,\n', img_y(4));
-        if img_rev
+        fprintf(tfile_h, '\t \t xmin = %f,\n', img_axes_x(1));
+        fprintf(tfile_h, '\t \t xmax = %f,\n', img_axes_x(2));
+        fprintf(tfile_h, '\t \t ymin = %f,\n', img_axes_y(1));
+        fprintf(tfile_h, '\t \t ymax = %f,\n', img_axes_y(2));
+        if img_x_reversed
             fprintf(tfile_h, '\t \t x dir = reverse,\n');
+        end
+        if img_y_reversed
+            fprintf(tfile_h, '\t \t y dir = reverse,\n');
         end
     else
         
-        fprintf(tfile_h, '\t \t xmin = %f,\n', axes_limit_x(1));
-        fprintf(tfile_h, '\t \t xmax = %f,\n', axes_limit_x(2));
-        fprintf(tfile_h, '\t \t ymin = %f,\n', axes_limit_y(1));
-        fprintf(tfile_h, '\t \t ymax = %f,\n', axes_limit_y(2));
-        fprintf(tfile_h, '\t \t zmin = %f,\n', axes_limit_z(1));
-        fprintf(tfile_h, '\t \t zmax = %f,\n', axes_limit_z(2));
+        fprintf(tfile_h, '\t \t xmin = %f,\n', axes_x(1));
+        fprintf(tfile_h, '\t \t xmax = %f,\n', axes_x(2));
+        fprintf(tfile_h, '\t \t ymin = %f,\n', axes_y(1));
+        fprintf(tfile_h, '\t \t ymax = %f,\n', axes_y(2));
+        fprintf(tfile_h, '\t \t zmin = %f,\n', axes_z(1));
+        fprintf(tfile_h, '\t \t zmax = %f,\n', axes_z(2));
     end
     
     if (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
@@ -463,7 +440,7 @@ if (cfg.write_tikz)
     if plot2d
         fprintf(tfile_h, '\t \t \\addplot graphics\n');
         fprintf(tfile_h, '\t \t \t [xmin=%f, xmax=%f, ymin=%f, ymax=%f]\n', ...
-            img_x(1), img_x(2), img_y(1), img_y(2) );
+            img_data_x(1), img_data_x(2), img_data_y(1), img_data_y(2) );
         fprintf(tfile_h, '\t \t {%s.png};\n', export_fname);
     else
         fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
@@ -491,13 +468,14 @@ if cfg.write_fig
 end
 end
 
-function [ global_data_limits_x, global_data_limits_y, global_data_limits_z ] = get_data_limits( axes )
+function [ global_data_limit_x, global_data_limit_y, global_data_limit_z ] = get_data_limits( axes )
 %GET_DATA_LIMITS get the max and min values of the data plotted in specific axes
 %   This is not neccessarily the same as the plot ranges.
 
-global_data_limits_x = [Inf, -Inf];
-global_data_limits_y = [Inf, -Inf];
-global_data_limits_z = [Inf, -Inf];
+% [Inf, -Inf] is neccessary so e.g, lower data trumps the current min, starting from Inf
+global_data_limit_x = [Inf, -Inf];
+global_data_limit_y = [Inf, -Inf];
+global_data_limit_z = [Inf, -Inf];
 
 for i=1:numel(axes.Children)
     data_limits_x(1) = min(axes.Children(i).XData(:));
@@ -507,60 +485,63 @@ for i=1:numel(axes.Children)
     data_limits_z(1) = min(axes.Children(i).ZData(:));
     data_limits_z(2) = max(axes.Children(i).ZData(:));
     
-    if data_limits_x(1) < global_data_limits_x(1)
-        global_data_limits_x(1) = data_limits_x(1);
+    if data_limits_x(1) < global_data_limit_x(1)
+        global_data_limit_x(1) = data_limits_x(1);
     end
-    if data_limits_x(2) > global_data_limits_x(2)
-        global_data_limits_x(2) = data_limits_x(2);
-    end
-    
-    if data_limits_y(1) < global_data_limits_y(1)
-        global_data_limits_y(1) = data_limits_y(1);
-    end
-    if data_limits_y(2) > global_data_limits_y(2)
-        global_data_limits_y(2) = data_limits_y(2);
+    if data_limits_x(2) > global_data_limit_x(2)
+        global_data_limit_x(2) = data_limits_x(2);
     end
     
-    if data_limits_z(1) < global_data_limits_z(1)
-        global_data_limits_z(1) = data_limits_z(1);
+    if data_limits_y(1) < global_data_limit_y(1)
+        global_data_limit_y(1) = data_limits_y(1);
     end
-    if data_limits_z(2) > global_data_limits_z(2)
-        global_data_limits_z(2) = data_limits_z(2);
+    if data_limits_y(2) > global_data_limit_y(2)
+        global_data_limit_y(2) = data_limits_y(2);
+    end
+    
+    if data_limits_z(1) < global_data_limit_z(1)
+        global_data_limit_z(1) = data_limits_z(1);
+    end
+    if data_limits_z(2) > global_data_limit_z(2)
+        global_data_limit_z(2) = data_limits_z(2);
     end
 end
 
 end
 
-function [ axes_limit_x, axes_limit_y, axes_limit_z, c_data_limits ] = get_axes_limits( axes )
-axes_limit_x = axes.XLim;
-axes_limit_y = axes.YLim;
-axes_limit_z = axes.ZLim;
+function [ axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z ] = get_plot_limits( axes )
+%GET_PLOT_LIMITS returns the effective axes limits, as well as the limits of the visible data
+axes_x = axes.XLim;
+axes_y = axes.YLim;
+axes_z = axes.ZLim;
 
-
-[data_limits_x, data_limits_y, data_limits_z] = get_data_limits(axes);
+[data_limit_x, data_limit_y, data_limit_z] = get_data_limits(axes);
+%TODO: what to do when data is Inf and so are axes?
 
 % use auto mode value for axes where neccessary
-if isinf(axes_limit_x(1))
-    axes_limit_x(1) = data_limits_x(1);
+if isinf(axes_x(1))
+    axes_x(1) = data_limit_x(1);
 end
-if isinf(axes_limit_x(2))
-    axes_limit_x(2) = data_limits_x(2);
-end
-
-if isinf(axes_limit_y(1))
-    axes_limit_y(1) = data_limits_y(1);
-end
-if isinf(axes_limit_y(2))
-    axes_limit_y(2) = data_limits_y(2);
+if isinf(axes_x(2))
+    axes_x(2) = data_limit_x(2);
 end
 
-if isinf(axes_limit_z(1))
-    axes_limit_z(1) = data_limits_z(1);
+if isinf(axes_y(1))
+    axes_y(1) = data_limit_y(1);
 end
-if isinf(axes_limit_z(2))
-    axes_limit_z(2) = data_limits_z(2);
+if isinf(axes_y(2))
+    axes_y(2) = data_limit_y(2);
 end
 
-c_data_limits = axes_limit_z;
+if isinf(axes_z(1))
+    axes_z(1) = data_limit_z(1);
+end
+if isinf(axes_z(2))
+    axes_z(2) = data_limit_z(2);
+end
+
+v_data_x = [max(axes_x(1), data_limit_x(1)), min(axes_x(2), data_limit_x(2))];
+v_data_y = [max(axes_y(1), data_limit_y(1)), min(axes_y(2), data_limit_y(2))];
+v_data_z = [max(axes_z(1), data_limit_z(1)), min(axes_z(2), data_limit_z(2))];
 
 end
