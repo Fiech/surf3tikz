@@ -188,9 +188,8 @@ are some notes on what I found out via testing:
 
 ## General Notes
 
-* For now, if you try to run this script on a surf with a view of El=90°, PGFPlots will sometimes
-  throw a dimension error.
-* There is a point to be made to use imagesc instead of print in some situations. However, for now
-  it's not implemented in this function yet.
+* Currently every graphic object belonging to the current axis will be included in the picture (or
+  the first surface plot in the pixel image approach). In the future other plots than surface plots
+  might be considered in a special way (coordinates, or CSV files, or similar)
 * The name surf3tikz seems strange, but was used to prevent naming conflicts with a similar script
   named surf2TikZ by Fabian Roos which this script is loosely based upon.
