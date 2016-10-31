@@ -392,7 +392,15 @@ end
 % print png and make transparent
 if (cfg.write_png)
     if use_imagesc
-        cdata = plot_handles.axes.Children(1).CData;
+        % select the first surf plot
+        for surf_idx=1:numel(plot_handles.axes.Children)
+            if isa(plot_handles.axes.Children(surf_idx), 'matlab.graphics.chart.primitive.Surface')
+                break;
+            elseif surf_idx == numel(plot_handles.axes.Children)
+                error('Could not find a surface plot to convert to image!')
+            end
+        end
+        cdata = plot_handles.axes.Children(surf_idx).CData;
         if horz ~= 1
             cdata = cdata';
         end
