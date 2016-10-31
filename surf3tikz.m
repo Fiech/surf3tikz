@@ -132,19 +132,23 @@ while true
     i = i+1;
 end
 
-xlabel_txt = '';
-ylabel_txt = '';
-zlabel_txt = '';
-if ~isempty(plot_handles.axes.XLabel.String)
+if iscellstr(plot_handles.axes.XLabel.String)
     xlabel_txt = plot_handles.axes.XLabel.String{1};
-end
-if ~isempty(plot_handles.axes.YLabel.String)
-    ylabel_txt = plot_handles.axes.YLabel.String{1};
-end
-if ~isempty(plot_handles.axes.ZLabel.String)
-    zlabel_txt = plot_handles.axes.ZLabel.String{1};
+else
+    xlabel_txt = plot_handles.axes.XLabel.String;
 end
 
+if iscellstr(plot_handles.axes.YLabel.String)
+    ylabel_txt = plot_handles.axes.YLabel.String{1};
+else
+    ylabel_txt = plot_handles.axes.YLabel.String;
+end
+
+if iscellstr(plot_handles.axes.ZLabel.String)
+    zlabel_txt = plot_handles.axes.ZLabel.String{1};
+else
+    zlabel_txt = plot_handles.axes.ZLabel.String;
+end
 
 %% find axes limits and explicitly set them
 
