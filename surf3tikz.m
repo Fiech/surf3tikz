@@ -3,8 +3,8 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 % This function takes a figure containing a surf plot and creates a tikz file and an according png
 % file. To achieve this, it automatically places data markers on points of the axes box around
 % the plot and subsequently detects their pixel position.
-% For views (0,0), (180,0), (90,0), and (-90,0) a simpler approach is used which creates
-% a 2D plot in TikZ, instead of a 3D one. This is done to prevent unstable behaviour because of
+% For views where only two of the three dimensions are visible a simpler approach is used which creates
+% a 2D plot in TikZ, instead of a 3D one. This prevents unstable behaviour because of
 % imperfect point positions that especially occur in 90° elevation (bird's eye view) cases. This
 % behavior can be suppressed.
 % Additionally the key values are available as output parameters to build your own tikz file from
@@ -27,9 +27,9 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %      .force_exact_values: per default, surf3tikz will round the pt_point_positions to the first
 %       full pt, because otherwise the PGFPlot process seems to be stuck in certain cases. If you
 %       don't want surf3tikz to do this, set this parameter to true, default: false
-%      .force_3d: For special views (0,0), (180,0), (90,0), and (-90,0) instead of the 3D approach a
-%       2D approach is used. To force the use of the 3D approach set this to true, default: false
-%      .use_imagesc: For 2D views, imagesc can be used as a way to save some space for the image
+%      .force_3d: For views where one dimension is hidden to the viewer, a 2D approach is used by default.
+%       To force the use of the 3D approach set this to true, default: false
+%      .use_imagesc: For top down views, imagesc can be used as a way to save space for the image file
 %       file, default: false, WARNING: EXPERIMENTAL AND NOT YET IMPLEMENTED FOR MULTI-SURF
 %   debug: boolean, will switch on/off an additional debug plot with the set cursors and the found
 %          pixel positions denoted by a white pixel ideally in the middle of every black cursor

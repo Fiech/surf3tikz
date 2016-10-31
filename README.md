@@ -8,7 +8,8 @@ surf3tikz is a MATLAB function that creates a TikZ+PNG file from a 3D plot.
 To achieve its goal, surf3tikz determines the corner points of the surrounding axes box and
 determines their pixel paper position later in the PNG file by placing markers on the points and
 then detecting the position in a temporary MATLAB image. surf3tikz tries to choose points that are
-in accordance with the needs of PGFPlots inner workings (see **Background Information** chapter).
+in accordance with the needs of PGFPlots inner workings (see **[Background
+Information](#background-information)** chapter).
 
 Additionally the key values are available as output parameters, so you can build your own TikZ file
 from scratch.
@@ -18,7 +19,7 @@ from scratch.
 
 ### Notes of importance
 
-* This function was only tested with _Ubuntu Linux_ and _PGFPlots_ 2016/01/06 v1.13
+* This function was only tested with _Ubuntu Linux_, _PGFPlots_ 2016/01/06 v1.13, MATLAB R2016a
 * To get rid of the white background of the PNG, the script makes a system call to _mogrify_, which is part
   of the _ImageMagick_ suite (ImageMagick 6.8.9-9 was used). If you cannot provide this program, you
   might want to do this step (white -> transparent) later on with an external program.
@@ -155,12 +156,26 @@ determining four points that fulfill the aforementioned constraints:
   unknown what happens if one chooses points this way. Therefore, for now this solution is not used
   in this function.
 
-### The issue with bird's eye views
+### Aligned 2D view processing
 
-As of now this function does not has any special functionality to deal with bird's eye viewed plots,
-i.e. plots with 90° elevation. This is due to the importance that the z axis is exactly
-perpendicular to the viewing plane. Sometimes bird's eye view plots seems to work just fine,
-sometimes PGFPlots will throw a fit. Here are some notes on what I found out via testing:
+The function implements special processing for views, where only two of the three dimensions are
+visible and the two visible dimensions line up with the two paper dimensions. These views are dubbed
+*aligned 2D views* and get special treatment inside the function:
+
+* By default, instead of 3D, a 2D axis is added in TikZ, to increase stability. This behaviour can
+  be suppressed.
+* Additionally, there is an experimental functionality available for top down (bird's eye views)
+  that can save a significant amount of image size, by writing the actual pixel size of the surface
+  plot instead of the dpi based version. This however is only available to the first surface plot as
+  of now. An example pixel sized approach is shown here:
+
+![Example Top Down Plot](image_sc_plot.png)
+
+
+### On the issue of bird's eye views in 3D
+
+Sometimes bird's eye view plots in 3D seem to work just fine, sometimes PGFPlots will throw a fit. Here
+are some notes on what I found out via testing:
 
 * Plots with El=90° and Az~=0° seem to be the main part of the problem.
 * PGFPlots sometimes has problems with fractional pt values. This function by default employs a
