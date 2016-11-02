@@ -30,7 +30,9 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %      .force_3d: For views where one dimension is hidden to the viewer, a 2D approach is used by default.
 %       To force the use of the 3D approach set this to true, default: false
 %      .use_imagesc: For top down views, imagesc can be used as a way to save space for the image file
-%       file, default: false, WARNING: EXPERIMENTAL AND NOT YET IMPLEMENTED FOR MULTI-SURF
+%       file, default: false, WARNING: EXPERIMENTAL AND USES THE FIRST SURFACE PLOT IT CAN FIND
+%      .print_all: Per default, this function will write line plots into CSV files. Overwrite this
+%      parameter, if instead a 1:1 graphics copy of your plots should be created.
 %   debug: boolean, will switch on/off an additional debug plot with the set cursors and the found
 %          pixel positions denoted by a white pixel ideally in the middle of every black cursor
 %          rectangle, default: false
@@ -99,8 +101,16 @@ if ~isfield(cfg, 'use_imagesc')
     cfg.use_imagesc = false;
 end
 
+if ~isfield(cfg, 'print_all')
+    cfg.print_all = false;
+end
+
 if nargin < 4
     debug = false;
+end
+
+if cfg.print_all && cfg.use_imagesc
+    warning('Setting both the print_all and use_imagesc to true may result in undesired outcome');
 end
 
 
@@ -150,6 +160,17 @@ else
     zlabel_txt = plot_handles.axes.ZLabel.String;
 end
 
+
+%% decide if the three dimensional approach or the easy two dimensional one is neccessary
+current_view_point = plot_handles.axes.View;
+
+if ~cfg.force_3d && ~sum(mod(current_view_point,90))
+    plot2d = true;
+else
+    plot2d = false;
+end
+
+
 %% find axes limits and explicitly set them
 
 [axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z] = get_plot_limits(plot_handles.axes);
@@ -163,12 +184,22 @@ if isnan(colorbar_limits)
 end
 
 
-%% decide if the three dimensional approach or the easy two dimensional one is neccessary
+%% gather plot data
 current_view_point = plot_handles.axes.View;
 use_imagesc = false;
 
-if ~cfg.force_3d && ~sum(mod(current_view_point,90))
-    plot2d = true;
+% determine plottable objects vs. printable ones
+children_idc_plot = [];
+children_idc_print = [];
+for i=1:numel(plot_handles.axes.Children)
+    if isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Line')
+        children_idc_plot(end+1) = i;
+    else
+        children_idc_print(end+1) = i;
+    end
+end
+
+if plot2d
     % basic idea:
     % for those special views (0,0), (180,0), (90,0), (-90,0),  (0,90), and (-90,90) no 3D
     % approach is necessary. A PNG file is saved and one has to specify the
@@ -206,8 +237,15 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
         % we are top down and can use imagesc if the user wants it
         use_imagesc = true;
     end
+    
+    if cfg.print_all && ~cfg.use_imagesc
+        print_obj_idc = 1:numel(plot_handles.axes.Children);
+    else
+        print_obj_idc = children_idc_print;
+    end
+    [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(print_obj_idc), abs([horz, vert]));
+    
 else
-    plot2d = false;
     % determine plot support points for TikZ
     tikz_support_points = get_tikz_support_points(axes_x, axes_y, axes_z, current_view_point, cfg);
     
@@ -217,9 +255,7 @@ else
     
 end
 
-%% write output files
-
-% print png and make transparent
+%% print image data
 if (cfg.write_png)
     if use_imagesc
         % select the first surf plot
@@ -244,6 +280,11 @@ if (cfg.write_png)
         im_scaled = round((cdata(end:-1:1,:)-min(cdata(:)))./(max(cdata(:))-min(cdata(:)))*size(cmap,1));
         imwrite(im_scaled, cmap, [export_name, '.png'], 'png')
     else
+        if ~cfg.print_all
+            for i=children_idc_plot
+                plot_handles.axes.Children(i).Visible = 'off';
+            end
+        end
         print(plot_handles.figure, export_name, '-dpng', ['-r' num2str(cfg.export_dpi)]);
         system(['mogrify -transparent white ', export_name, '.png']);
         if plot2d
@@ -252,9 +293,19 @@ if (cfg.write_png)
     end
 end
 
+
+%% write TikZ/PGFPlots data
+
 [~, export_fname, ~] = fileparts(export_name);
 
-% write to TikZ file
+if plot2d
+    view_dims = [horz, vert];
+else
+    view_dims = [];
+end
+
+[plot_parameters, data_filenames] = process_plots(plot_handles.axes.Children(children_idc_plot), export_name, plot2d, abs(view_dims));
+
 if (cfg.write_tikz)
     tfile_h = fopen([export_name, '.tikz'], 'w');
     fprintf(tfile_h, '%% created with surf3tikz written by Johannes Schlichenmaier\n');
@@ -310,7 +361,7 @@ if (cfg.write_tikz)
     if plot2d
         fprintf(tfile_h, '\t \t \\addplot graphics\n');
         fprintf(tfile_h, '\t \t \t [xmin=%f, xmax=%f, ymin=%f, ymax=%f]\n', ...
-            img_data_x(1), img_data_x(2), img_data_y(1), img_data_y(2) );
+            print_data_range_horz(1), print_data_range_horz(2), print_data_range_vert(1), print_data_range_vert(2) );
         fprintf(tfile_h, '\t \t {%s.png};\n', export_fname);
     else
         fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
@@ -325,6 +376,23 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t }]{%s.png};\n', export_fname);
     end
     
+    fprintf(tfile_h, '\n');
+    
+    if ~cfg.print_all
+        for i=1:numel(children_idc_plot)
+            if plot2d
+                fprintf(tfile_h, '\t \t \\addplot+[%%\n');
+            else
+                fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
+            end
+            fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
+            fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks');
+            fprintf(tfile_h, '\t \t ]\n');
+            fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', data_filenames{i});
+            fprintf(tfile_h, '\n');
+        end
+    end
+    
     fprintf(tfile_h, '\t \\end{axis}\n');
     fprintf(tfile_h, '\\end{tikzpicture}');
     fclose(tfile_h);
@@ -332,7 +400,7 @@ end
 
 close(plot_handles.figure)
 
-% optional, save the original figure if desired
+%% save the original figure if desired
 if cfg.write_fig
     savefig(h_figure, [export_name, '.fig'])
 end
@@ -527,6 +595,7 @@ end
 
 
 function [ pt_point_positions, px_pos_order ] = get_point_positions( tikz_support_points, plot_handles, cfg, debug )
+%GET_POINT_POSITIONS determines the positions of the support plots in points
 % first, hide all other plots
 for i=1:numel(plot_handles.axes.Children)
     plot_handles.axes.Children(i).Visible = 'off';
@@ -631,7 +700,69 @@ if debug
     figure
     image(debug_image_data);
     figure(plot_handles.figure)
-    plot_handles.support_plot.Visible = 'off';
+end
+
+delete(plot_handles.support_plot);
+
+end
+
+
+function [plot_parameters, file_names ] = process_plots(g_objects, write_name, plot2d, view_dims)
+%PROCESS_PLOTS saves line plots into CSV files
+num_objects = numel(g_objects);
+[file_path, file_base_name, ~] = fileparts(write_name);
+
+if isempty(file_path)
+    file_path = '.';
+end
+
+file_names = cell(num_objects);
+plot_parameters = cell(num_objects);
+
+for i=1:num_objects
+    XYZ_Data = [g_objects(i).XData;g_objects(i).YData;g_objects(i).ZData];
+    file_names{i} = sprintf([file_base_name, '-plot-%d.csv'], i);
+    f_handle = fopen([file_path filesep file_names{i}], 'w+');
+    if plot2d
+        XY_Data = XYZ_Data(view_dims, :);
+        fprintf(f_handle, '%f,%f\n', XY_Data);
+    else
+        fprintf(f_handle, '%f,%f,%f\n', XYZ_Data);
+    end
+    fclose(f_handle);
+end
+
+end
+
+
+function [ range_horz, range_vert] = get_print_data_range( g_objects, view_dims )
+%GET_PRINT_DATA_RANGE returns the horizontal and vertical limits of the printed image data (2D
+%approach only)
+
+range_horz = [Inf, -Inf];
+range_vert = [Inf, -Inf];
+
+for i=1:numel(g_objects)
+    XYZ_Data = [g_objects(i).XData(:)';g_objects(i).YData(:)';g_objects(i).ZData(:)'];
+    XY_Data = XYZ_Data(view_dims,:);
+    data_limits_horz(1) = min(XY_Data(1,:));
+    data_limits_horz(2) = max(XY_Data(1,:));
+    data_limits_vert(1) = min(XY_Data(2,:));
+    data_limits_vert(2) = max(XY_Data(2,:));
+    
+    if data_limits_horz(1) < range_horz(1)
+        range_horz(1) = data_limits_horz(1);
+    end
+    if data_limits_horz(2) > range_horz(2)
+        range_horz(2) = data_limits_horz(2);
+    end
+    
+    if data_limits_vert(1) < range_vert(1)
+        range_vert(1) = data_limits_vert(1);
+    end
+    if data_limits_vert(2) > range_vert(2)
+        range_vert(2) = data_limits_vert(2);
+    end
 end
 
 end
