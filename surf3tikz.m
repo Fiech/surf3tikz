@@ -267,7 +267,7 @@ if (cfg.write_png)
             end
         end
         cdata = plot_handles.axes.Children(surf_idx).CData;
-        if horz ~= 1
+        if abs(horz) ~= 1
             cdata = cdata';
         end
         if horz < 0
