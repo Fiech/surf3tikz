@@ -211,118 +211,9 @@ else
     % determine plot support points for TikZ
     tikz_support_points = get_tikz_support_points(axes_x, axes_y, axes_z, current_view_point, cfg);
     
-    %% draw support markers and determine paper position
+    %draw support markers and determine paper position
     
-    % first, hide all other plots
-    for i=1:numel(plot_handles.axes.Children)
-        plot_handles.axes.Children(i).Visible = 'off';
-    end
-    
-    % prepare marker handle for paper position determination
-    hold(plot_handles.axes, 'on');
-    plot_handles.support_plot = plot3(plot_handles.axes, nan, nan, nan, ...
-        'Marker', 'square', ...
-        'MarkerFaceColor', [0,0,0], ...
-        'MarkerEdgeColor', [1,1,1], ...
-        'LineStyle', 'none', ...
-        'Tag', 'BoxPoints', ...
-        'MarkerSize', 10);
-    hold(plot_handles.axes, 'off');
-    
-    % determining the paper positions of the selected box points
-    mid_row_pixel = zeros(4,1);
-    mid_col_pixel = zeros(4,1);
-    for i = 1:4
-        % setting cursor position
-        plot_handles.support_plot.XData = tikz_support_points(i,1);
-        plot_handles.support_plot.YData = tikz_support_points(i,2);
-        plot_handles.support_plot.ZData = tikz_support_points(i,3);
-        % create 2D image
-        frame_data = getframe(plot_handles.figure);
-        [image_data,~] = frame2im(frame_data);
-        flat_image_data = image_data(:,:,1)+image_data(:,:,2)+image_data(:,:,3);
-        
-        % find black rectangle
-        min_idc = find(flat_image_data(:) == 0);
-        [min_row, min_col] = ind2sub(size(flat_image_data), min_idc);
-        
-        % extract center point of black rectangle
-        unique_min_row = unique(min_row);
-        unique_min_col = unique(min_col);
-        mid_row_pixel(i) = round((max(unique_min_row) + min(unique_min_row))/2);
-        mid_col_pixel(i) = round((max(unique_min_col) + min(unique_min_col))/2);
-    end
-    
-    % remap to origin down left
-    [ysize, ~] = size(flat_image_data);
-    pgf_pixel_points = [mid_col_pixel, repmat(ysize,4,1)-mid_row_pixel];
-    
-    % calculate pts values
-    pt_point_positions = pgf_pixel_points./cfg.screen_ppi./cfg.inch2point_ratio;
-    if ~cfg.force_exact_values
-        pt_point_positions = round(pt_point_positions);
-    end
-    
-    % Apparently PGFPlot is a bit picky about the first two points. It apparently works best if both
-    % pixel positions are different in the first two points. So let's look for a solution.
-    drawer = nan(1,2,4);
-    drawer(1,:,:) = pt_point_positions';
-    box_matrix = repmat(pt_point_positions,1,1,4);
-    sub_matrix = repmat(drawer,4,1,1);
-    diff_matrix = box_matrix - sub_matrix;
-    possible_starts = squeeze(diff_matrix(:,1,:) ~= 0 & diff_matrix(:,2,:) ~= 0);
-    
-    px_pos_order = [0,0,0,0];
-    for i=1:4
-        poss_next_point = find(possible_starts(:,1));
-        if ~isempty(poss_next_point)
-            px_pos_order(1) = i;
-            px_pos_order(2) = poss_next_point(1);
-            px_pos_order(3:4) = setdiff(1:4, px_pos_order);
-            break;
-        elseif i==4
-            warning('Could not find a good pixel sorting. Finishing up regardless!');
-            px_pos_order = 1:4;
-        end
-    end
-    
-end
-
-%% tidy up
-for i=1:numel(plot_handles.axes.Children)
-    plot_handles.axes.Children(i).Visible = 'on';
-end
-plot_handles.support_plot.Visible = 'off';
-
-if ~cfg.force_3d && ~sum(mod(current_view_point,90))
-    if debug
-        plot_handles.cursor_manager.UpdateFcn = [];
-        
-        plot_handles.support_plot.XData = box_points(:,1);
-        plot_handles.support_plot.YData = box_points(:,2);
-        plot_handles.support_plot.ZData = box_points(:,3);
-        plot_handles.support_plot.Visible = 'on';
-        
-        plot_handles.cursor_manager = datacursormode(plot_handles.figure);
-        for i = 1:4
-            debug_cursor = createDatatip(plot_handles.cursor_manager, plot_handles.support_plot);
-            debug_cursor.Position = tikz_support_points(i,:);
-        end
-        
-        debug_frame_data = getframe(plot_handles.figure);
-        [debug_image_data,~] = frame2im(debug_frame_data);
-        
-        plot_handles.cursor_manager.removeAllDataCursors
-        
-        for i = 1:4
-            debug_image_data(mid_row_pixel(i), mid_col_pixel(i), :) = 255*[1,1,1];
-        end
-        
-        figure
-        image(debug_image_data);
-        figure(plot_handles.figure)
-        plot_handles.support_plot.Visible = 'off';
-    end
+    [pt_point_positions, px_pos_order] = get_point_positions(tikz_support_points, plot_handles, cfg, debug);
     
 end
 
@@ -571,6 +462,7 @@ end
 
 
 function [ support_points ] = get_tikz_support_points(limits_x, limits_y, limits_z, view_point, cfg)
+%GET_TIKZ_SUPPORT_POINTS determines the support points for the PGFPlot image
 % determine axes box outer points
 box_points = nan(8,3);
 box_points(1,:) = [limits_x(1),limits_y(1),limits_z(1)];
@@ -631,4 +523,115 @@ else
         error('Neither of the proposed point trains seem to work, could not find 4 viable points...');
     end
 end
+end
+
+
+function [ pt_point_positions, px_pos_order ] = get_point_positions( tikz_support_points, plot_handles, cfg, debug )
+% first, hide all other plots
+for i=1:numel(plot_handles.axes.Children)
+    plot_handles.axes.Children(i).Visible = 'off';
+end
+
+% prepare marker handle for paper position determination
+hold(plot_handles.axes, 'on');
+plot_handles.support_plot = plot3(plot_handles.axes, nan, nan, nan, ...
+    'Marker', 'square', ...
+    'MarkerFaceColor', [0,0,0], ...
+    'MarkerEdgeColor', [1,1,1], ...
+    'LineStyle', 'none', ...
+    'Tag', 'BoxPoints', ...
+    'MarkerSize', 10);
+hold(plot_handles.axes, 'off');
+
+% determining the paper positions of the selected box points
+mid_row_pixel = zeros(4,1);
+mid_col_pixel = zeros(4,1);
+for i = 1:4
+    % setting cursor position
+    plot_handles.support_plot.XData = tikz_support_points(i,1);
+    plot_handles.support_plot.YData = tikz_support_points(i,2);
+    plot_handles.support_plot.ZData = tikz_support_points(i,3);
+    % create 2D image
+    frame_data = getframe(plot_handles.figure);
+    [image_data,~] = frame2im(frame_data);
+    flat_image_data = image_data(:,:,1)+image_data(:,:,2)+image_data(:,:,3);
+    
+    % find black rectangle
+    min_idc = find(flat_image_data(:) == 0);
+    [min_row, min_col] = ind2sub(size(flat_image_data), min_idc);
+    
+    % extract center point of black rectangle
+    unique_min_row = unique(min_row);
+    unique_min_col = unique(min_col);
+    mid_row_pixel(i) = round((max(unique_min_row) + min(unique_min_row))/2);
+    mid_col_pixel(i) = round((max(unique_min_col) + min(unique_min_col))/2);
+end
+
+% remap to origin down left
+[ysize, ~] = size(flat_image_data);
+pgf_pixel_points = [mid_col_pixel, repmat(ysize,4,1)-mid_row_pixel];
+
+% calculate pts values
+pt_point_positions = pgf_pixel_points./cfg.screen_ppi./cfg.inch2point_ratio;
+if ~cfg.force_exact_values
+    pt_point_positions = round(pt_point_positions);
+end
+
+% Apparently PGFPlot is a bit picky about the first two points. It apparently works best if both
+% pixel positions are different in the first two points. So let's look for a solution.
+drawer = nan(1,2,4);
+drawer(1,:,:) = pt_point_positions';
+box_matrix = repmat(pt_point_positions,1,1,4);
+sub_matrix = repmat(drawer,4,1,1);
+diff_matrix = box_matrix - sub_matrix;
+possible_starts = squeeze(diff_matrix(:,1,:) ~= 0 & diff_matrix(:,2,:) ~= 0);
+
+px_pos_order = [0,0,0,0];
+for i=1:4
+    poss_next_point = find(possible_starts(:,1));
+    if ~isempty(poss_next_point)
+        px_pos_order(1) = i;
+        px_pos_order(2) = poss_next_point(1);
+        px_pos_order(3:4) = setdiff(1:4, px_pos_order);
+        break;
+    elseif i==4
+        warning('Could not find a good pixel sorting. Finishing up regardless!');
+        px_pos_order = 1:4;
+    end
+end
+
+for i=1:numel(plot_handles.axes.Children)
+    plot_handles.axes.Children(i).Visible = 'on';
+end
+plot_handles.support_plot.Visible = 'off';
+
+if debug
+    plot_handles.cursor_manager.UpdateFcn = [];
+    
+    plot_handles.support_plot.XData = tikz_support_points(:,1);
+    plot_handles.support_plot.YData = tikz_support_points(:,2);
+    plot_handles.support_plot.ZData = tikz_support_points(:,3);
+    plot_handles.support_plot.Visible = 'on';
+    
+    plot_handles.cursor_manager = datacursormode(plot_handles.figure);
+    for i = 1:4
+        debug_cursor = createDatatip(plot_handles.cursor_manager, plot_handles.support_plot);
+        debug_cursor.Position = tikz_support_points(i,:);
+    end
+    
+    debug_frame_data = getframe(plot_handles.figure);
+    [debug_image_data,~] = frame2im(debug_frame_data);
+    
+    plot_handles.cursor_manager.removeAllDataCursors
+    
+    for i = 1:4
+        debug_image_data(mid_row_pixel(i), mid_col_pixel(i), :) = 255*[1,1,1];
+    end
+    
+    figure
+    image(debug_image_data);
+    figure(plot_handles.figure)
+    plot_handles.support_plot.Visible = 'off';
+end
+
 end
