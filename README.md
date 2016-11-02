@@ -64,6 +64,14 @@ values seem to be (I'll update the list with more information as soon as I get i
 There is a bit of information available about this topic in the MATLAB help page about
 [DPI-Aware Behavior in MATLAB](http://de.mathworks.com/help/matlab/creating_guis/dpi-aware-behavior-in-matlab.html).
 
+### 3D Line plots
+
+Additionally to converting the surface plot into an image, the function will export points of 3D
+line plots into CSV files and add them in the TikZ file. For 2D viewing angles, a corresponding 2D
+plot is added instead. The conversion into CSV files can be suppressed and instead a picture of all
+the plots in the figure is made. Line styles are **NOT** converted into TikZ. A sensible cycle list
+is assumed instead.
+
 
 ## Background Information
 
