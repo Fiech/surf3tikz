@@ -208,69 +208,8 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
     end
 else
     plot2d = false;
-    
-    %% choosing tikz support points
-    % determine axes box outer points
-    box_points = nan(8,3);
-    box_points(1,:) = [axes_x(1),axes_y(1),axes_z(1)];
-    box_points(2,:) = [axes_x(1),axes_y(1),axes_z(2)];
-    box_points(3,:) = [axes_x(1),axes_y(2),axes_z(1)];
-    box_points(4,:) = [axes_x(1),axes_y(2),axes_z(2)];
-    box_points(5,:) = [axes_x(2),axes_y(1),axes_z(1)];
-    box_points(6,:) = [axes_x(2),axes_y(1),axes_z(2)];
-    box_points(7,:) = [axes_x(2),axes_y(2),axes_z(1)];
-    box_points(8,:) = [axes_x(2),axes_y(2),axes_z(2)];
-    
-    % rotate box points and find out which points lie on top of each other
-    
-    rot_matrix_Z = rotz(-current_view_point(1));
-    rot_matrix_X = rotx(current_view_point(2));
-    box_points_turned = (rot_matrix_X*(rot_matrix_Z*box_points'))';
-    [~, ~, ubp_rev_idc] = unique([box_points_turned(:,1), box_points_turned(:,3)], 'rows');
-    
-    % As far as my testing showed, PGFPlots wants to have a set of points where you can find at least
-    % a pair of points, that stay the same in one dim and changes in the other two, for every dim.
-    % These pairs are precalculated. But to remind me and inform interested people, I'll leave this
-    % code in here anyways.
-    % drawer = nan(1,3,8);
-    % drawer(1,:,:) = box_points';
-    % box_matrix = repmat(box_points,1,1,8);
-    % sub_matrix = repmat(drawer, 8,1,1);
-    %
-    % diff_matrix = box_matrix - sub_matrix;
-    %
-    % X_pairs = squeeze(diff_matrix(:,1,:) == 0 & diff_matrix(:,2,:) ~= 0 & diff_matrix(:,3,:) ~= 0);
-    % Y_pairs = squeeze(diff_matrix(:,2,:) == 0 & diff_matrix(:,3,:) ~= 0 & diff_matrix(:,1,:) ~= 0);
-    % Z_pairs = squeeze(diff_matrix(:,3,:) == 0 & diff_matrix(:,1,:) ~= 0 & diff_matrix(:,2,:) ~= 0);
-    %
-    % [row, col] = find(X_pairs);
-    % X_pairs = unique(sort([row, col], 2), 'rows')
-    % [row, col] = find(Y_pairs);
-    % Y_pairs = unique(sort([row, col], 2), 'rows')
-    % [row, col] = find(Z_pairs);
-    % Z_pairs = unique(sort([row, col], 2), 'rows')
-    %
-    % X_pairs = [1,4;2,3;5,8;6,7];
-    % Y_pairs = [1,6;2,5;3,8;4,7];
-    % Z_pairs = [1,7;2,8;3,5;4,6];
-    
-    % If you don't want to fulfill the aforementioned constraints with only three points and add
-    % an additional point, there are only two sets of points that work (I have the feeling that
-    % here is a high potential for bugs...):
-    box_point_sets = [1,4,6,7;2,3,5,8];
-    
-    if ~isempty(cfg.box_point_idc);
-        tikz_support_points = box_points(cfg.box_point_idc,:);
-    else
-        if numel(unique(ubp_rev_idc(box_point_sets(1,:)))) == 4
-            tikz_support_points = box_points(box_point_sets(1,:),:);
-        elseif numel(unique(ubp_rev_idc(box_point_sets(2,:)))) == 4
-            tikz_support_points = box_points(box_point_sets(2,:),:);
-        else
-            error('Neither of the proposed point trains seem to work, could not find 4 viable points...');
-        end
-    end
-    
+    % determine plot support points for TikZ
+    tikz_support_points = get_tikz_support_points(axes_x, axes_y, axes_z, current_view_point, cfg);
     
     %% draw support markers and determine paper position
     
@@ -410,7 +349,6 @@ if (cfg.write_png)
         if vert < 0
             cdata = cdata(end:-1:1,:);
         end
-%         if 
         cmap = plot_handles.figure.Colormap;
         im_scaled = round((cdata(end:-1:1,:)-min(cdata(:)))./(max(cdata(:))-min(cdata(:)))*size(cmap,1));
         imwrite(im_scaled, cmap, [export_name, '.png'], 'png')
@@ -509,6 +447,8 @@ if cfg.write_fig
 end
 end
 
+%% additional functions
+
 function [ global_data_limit_x, global_data_limit_y, global_data_limit_z ] = get_data_limits( axes )
 %GET_DATA_LIMITS get the max and min values of the data plotted in specific axes
 %   This is not neccessarily the same as the plot ranges.
@@ -550,6 +490,7 @@ end
 
 end
 
+
 function [ axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z ] = get_plot_limits( axes )
 %GET_PLOT_LIMITS returns the effective axes limits, as well as the limits of the visible data
 
@@ -588,6 +529,7 @@ v_data_z = [max(axes_z(1), data_limit_z(1)), min(axes_z(2), data_limit_z(2))];
 
 end
 
+
 function [ horz, vert ] = viewpoint_to_img_axes( viewpoint )
 %VIEPOINT_TO_IMG_AXES converts a figure viewport to a 2D image (X,Y) CS
 % returns the horizontal and vertical dimension (x=1, y=2, z=3)
@@ -625,4 +567,68 @@ else
     end
 end
 
+end
+
+
+function [ support_points ] = get_tikz_support_points(limits_x, limits_y, limits_z, view_point, cfg)
+% determine axes box outer points
+box_points = nan(8,3);
+box_points(1,:) = [limits_x(1),limits_y(1),limits_z(1)];
+box_points(2,:) = [limits_x(1),limits_y(1),limits_z(2)];
+box_points(3,:) = [limits_x(1),limits_y(2),limits_z(1)];
+box_points(4,:) = [limits_x(1),limits_y(2),limits_z(2)];
+box_points(5,:) = [limits_x(2),limits_y(1),limits_z(1)];
+box_points(6,:) = [limits_x(2),limits_y(1),limits_z(2)];
+box_points(7,:) = [limits_x(2),limits_y(2),limits_z(1)];
+box_points(8,:) = [limits_x(2),limits_y(2),limits_z(2)];
+
+% rotate box points and find out which points lie on top of each other
+
+rot_matrix_Z = rotz(-view_point(1));
+rot_matrix_X = rotx(view_point(2));
+box_points_turned = (rot_matrix_X*(rot_matrix_Z*box_points'))';
+[~, ~, ubp_rev_idc] = unique([box_points_turned(:,1), box_points_turned(:,3)], 'rows');
+
+% As far as my testing showed, PGFPlots wants to have a set of points where you can find at least
+% a pair of points, that stay the same in one dim and changes in the other two, for every dim.
+% These pairs are precalculated. But to remind me and inform interested people, I'll leave this
+% code in here anyways.
+% drawer = nan(1,3,8);
+% drawer(1,:,:) = box_points';
+% box_matrix = repmat(box_points,1,1,8);
+% sub_matrix = repmat(drawer, 8,1,1);
+%
+% diff_matrix = box_matrix - sub_matrix;
+%
+% X_pairs = squeeze(diff_matrix(:,1,:) == 0 & diff_matrix(:,2,:) ~= 0 & diff_matrix(:,3,:) ~= 0);
+% Y_pairs = squeeze(diff_matrix(:,2,:) == 0 & diff_matrix(:,3,:) ~= 0 & diff_matrix(:,1,:) ~= 0);
+% Z_pairs = squeeze(diff_matrix(:,3,:) == 0 & diff_matrix(:,1,:) ~= 0 & diff_matrix(:,2,:) ~= 0);
+%
+% [row, col] = find(X_pairs);
+% X_pairs = unique(sort([row, col], 2), 'rows')
+% [row, col] = find(Y_pairs);
+% Y_pairs = unique(sort([row, col], 2), 'rows')
+% [row, col] = find(Z_pairs);
+% Z_pairs = unique(sort([row, col], 2), 'rows')
+%
+% X_pairs = [1,4;2,3;5,8;6,7];
+% Y_pairs = [1,6;2,5;3,8;4,7];
+% Z_pairs = [1,7;2,8;3,5;4,6];
+
+% If you don't want to fulfill the aforementioned constraints with only three points and add
+% an additional point, there are only two sets of points that work (I have the feeling that
+% here is a high potential for bugs...):
+box_point_sets = [1,4,6,7;2,3,5,8];
+
+if ~isempty(cfg.box_point_idc);
+    support_points = box_points(cfg.box_point_idc,:);
+else
+    if numel(unique(ubp_rev_idc(box_point_sets(1,:)))) == 4
+        support_points = box_points(box_point_sets(1,:),:);
+    elseif numel(unique(ubp_rev_idc(box_point_sets(2,:)))) == 4
+        support_points = box_points(box_point_sets(2,:),:);
+    else
+        error('Neither of the proposed point trains seem to work, could not find 4 viable points...');
+    end
+end
 end
