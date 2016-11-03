@@ -34,11 +34,13 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %      .print_all: Per default, this function will write line plots into CSV files or writes them to the
 %       TikZ file as coordinates. Overwrite this parameter, if instead a 1:1 graphics copy of your plots
 %       should be created. Default: false
-%      .ext_all: Per default, only line plots with more than five points are written to CSV files.
+%      .ext_all: Per default, only line plots with more than ten points are written to CSV files.
 %       You can force the function to export all line plots. Default: false
-%      .inline_all: Per default, only line plots with fewer than five points are written as inline
+%      .inline_all: Per default, only line plots with fewer than ten points are written as inline
 %       coordinates to the TikZ file. You can force the function to write all line plots to the TikZ
 %       file instead. Default: false
+%      .inline_limit: If you want to change the limit up to which amount of points, inline
+%       coordinates should be used for line plots, you can set it with this option. Default: 10
 %   debug: boolean, will switch on/off an additional debug plot with the set cursors and the found
 %          pixel positions denoted by a white pixel ideally in the middle of every black cursor
 %          rectangle, default: false
@@ -117,6 +119,10 @@ end
 
 if ~isfield(cfg, 'inline_all')
     cfg.inline_all = false;
+end
+
+if ~isfield(cfg, 'inline_limit')
+    cfg.inline_limit = 10;
 end
 
 if nargin < 4
@@ -220,7 +226,7 @@ children_idc_plot_inline = [];
 children_idc_print = [];
 for i=1:numel(plot_handles.axes.Children)
     if isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Line')
-        if numel(plot_handles.axes.Children(i).XData) > 5
+        if numel(plot_handles.axes.Children(i).XData) > cfg.inline_limit
             children_idc_plot_ext(end+1) = i;
         else
             children_idc_plot_inline(end+1) = i;
