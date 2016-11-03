@@ -189,11 +189,16 @@ current_view_point = plot_handles.axes.View;
 use_imagesc = false;
 
 % determine plottable objects vs. printable ones
-children_idc_plot = [];
+children_idc_plot_ext = [];
+children_idc_plot_inline = [];
 children_idc_print = [];
 for i=1:numel(plot_handles.axes.Children)
     if isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Line')
-        children_idc_plot(end+1) = i;
+        if numel(plot_handles.axes.Children(i).XData) > 5
+            children_idc_plot_ext(end+1) = i;
+        else
+            children_idc_plot_inline(end+1) = i;
+        end
     else
         children_idc_print(end+1) = i;
     end
@@ -249,10 +254,8 @@ else
     % determine plot support points for TikZ
     tikz_support_points = get_tikz_support_points(axes_x, axes_y, axes_z, current_view_point, cfg);
     
-    %draw support markers and determine paper position
-    
+    % draw support markers and determine paper position
     [pt_point_positions, px_pos_order] = get_point_positions(tikz_support_points, plot_handles, cfg, debug);
-    
 end
 
 %% print image data
@@ -281,7 +284,7 @@ if (cfg.write_png)
         imwrite(im_scaled, cmap, [export_name, '.png'], 'png')
     else
         if ~cfg.print_all
-            for i=children_idc_plot
+            for i=[children_idc_plot_ext, children_idc_plot_inline]
                 plot_handles.axes.Children(i).Visible = 'off';
             end
         end
@@ -304,7 +307,8 @@ else
     view_dims = [];
 end
 
-[plot_parameters, data_filenames] = process_plots(plot_handles.axes.Children(children_idc_plot), export_name, plot2d, abs(view_dims));
+[plot_parameters_ext, plot_data_filenames] = process_plots_ext(plot_handles.axes.Children(children_idc_plot_ext), export_name, plot2d, abs(view_dims));
+[plot_parameters_inline, plot_points_inline] = process_plots_inline(plot_handles.axes.Children(children_idc_plot_inline), plot2d, abs(view_dims));
 
 if (cfg.write_tikz)
     tfile_h = fopen([export_name, '.tikz'], 'w');
@@ -379,7 +383,7 @@ if (cfg.write_tikz)
     fprintf(tfile_h, '\n');
     
     if ~cfg.print_all
-        for i=1:numel(children_idc_plot)
+        for i=1:numel(children_idc_plot_ext)
             if plot2d
                 fprintf(tfile_h, '\t \t \\addplot+[%%\n');
             else
@@ -388,7 +392,25 @@ if (cfg.write_tikz)
             fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
             fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks');
             fprintf(tfile_h, '\t \t ]\n');
-            fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', data_filenames{i});
+            fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', plot_data_filenames{i});
+            fprintf(tfile_h, '\n');
+        end
+        
+        for i=1:numel(children_idc_plot_inline)
+            if plot2d
+                fprintf(tfile_h, '\t \t \\addplot+[%%\n');
+            else
+                fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
+            end
+            fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
+            fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks');
+            fprintf(tfile_h, '\t \t ] plot coordinates {%%\n');
+            if plot2d
+                fprintf(tfile_h, '\t \t \t (%f,%f)\n', plot_points_inline{i});
+            else
+                fprintf(tfile_h, '\t \t \t (%f,%f,%f)\n', plot_points_inline{i});
+            end
+            fprintf(tfile_h, '\t \t };\n');
             fprintf(tfile_h, '\n');
         end
     end
@@ -707,7 +729,7 @@ delete(plot_handles.support_plot);
 end
 
 
-function [plot_parameters, file_names ] = process_plots(g_objects, write_name, plot2d, view_dims)
+function [plot_parameters, file_names ] = process_plots_ext(g_objects, write_name, plot2d, view_dims)
 %PROCESS_PLOTS saves line plots into CSV files
 num_objects = numel(g_objects);
 [file_path, file_base_name, ~] = fileparts(write_name);
@@ -730,6 +752,26 @@ for i=1:num_objects
         fprintf(f_handle, '%f,%f,%f\n', XYZ_Data);
     end
     fclose(f_handle);
+end
+
+end
+
+
+function [plot_parameters, plot_points ] = process_plots_inline(g_objects, plot2d, view_dims)
+%PROCESS_PLOTS saves line plots into CSV files
+num_objects = numel(g_objects);
+
+plot_points = cell(num_objects);
+plot_parameters = cell(num_objects);
+
+for i=1:num_objects
+    XYZ_Data = [g_objects(i).XData;g_objects(i).YData;g_objects(i).ZData];
+    if plot2d
+        XY_Data = XYZ_Data(view_dims, :);
+        plot_points{i} = XY_Data; % in Tikz_File sprintf('%f,%f\n', XY_Data);
+    else
+        plot_points{i} = XYZ_Data; % in Tikz_File sprintf('%f,%f,%f\n', XYZ_Data);
+    end
 end
 
 end
