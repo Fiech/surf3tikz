@@ -31,8 +31,14 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 %       To force the use of the 3D approach set this to true, default: false
 %      .use_imagesc: For top down views, imagesc can be used as a way to save space for the image file
 %       file, default: false, WARNING: EXPERIMENTAL AND USES THE FIRST SURFACE PLOT IT CAN FIND
-%      .print_all: Per default, this function will write line plots into CSV files. Overwrite this
-%      parameter, if instead a 1:1 graphics copy of your plots should be created.
+%      .print_all: Per default, this function will write line plots into CSV files or writes them to the
+%       TikZ file as coordinates. Overwrite this parameter, if instead a 1:1 graphics copy of your plots
+%       should be created. Default: false
+%      .ext_all: Per default, only line plots with more than five points are written to CSV files.
+%       You can force the function to export all line plots. Default: false
+%      .inline_all: Per default, only line plots with fewer than five points are written as inline
+%       coordinates to the TikZ file. You can force the function to write all line plots to the TikZ
+%       file instead. Default: false
 %   debug: boolean, will switch on/off an additional debug plot with the set cursors and the found
 %          pixel positions denoted by a white pixel ideally in the middle of every black cursor
 %          rectangle, default: false
@@ -105,12 +111,31 @@ if ~isfield(cfg, 'print_all')
     cfg.print_all = false;
 end
 
+if ~isfield(cfg, 'ext_all')
+    cfg.ext_all = false;
+end
+
+if ~isfield(cfg, 'inline_all')
+    cfg.inline_all = false;
+end
+
 if nargin < 4
     debug = false;
 end
 
 if cfg.print_all && cfg.use_imagesc
-    warning('Setting both the print_all and use_imagesc to true may result in undesired outcome');
+    warning('Setting both the print_all and use_imagesc options to true may result in undesired outcome!');
+end
+
+if cfg.print_all && (cfg.ext_all || cfg.inline_all)
+    warning('Both the print_all and ext_all or inline_all options are set. Ignoring ext_all or inline_all!');
+    cfg.ext_all = false;
+    cfg.inline_all = false;
+end
+
+if cfg.ext_all && cfg.inline_all
+    warning('Both the ext_all or inline_all options are set. Ignoring inline_all!');
+    cfg.inline_all = false;
 end
 
 
@@ -141,6 +166,7 @@ while true
     end
     i = i+1;
 end
+    
 
 if iscellstr(plot_handles.axes.XLabel.String)
     xlabel_txt = plot_handles.axes.XLabel.String{1};
@@ -188,7 +214,7 @@ end
 current_view_point = plot_handles.axes.View;
 use_imagesc = false;
 
-% determine plottable objects vs. printable ones
+% determine graphic objects to plot vs. to print
 children_idc_plot_ext = [];
 children_idc_plot_inline = [];
 children_idc_print = [];
@@ -204,6 +230,22 @@ for i=1:numel(plot_handles.axes.Children)
     end
 end
 
+% overwriting depending on config options
+if cfg.print_all
+    children_idc_print = sort([children_idc_print, children_idc_plot_ext, children_idc_plot_inline]);
+    children_idc_plot_ext = [];
+    children_idc_plot_inline = [];
+end
+if cfg.ext_all
+    children_idc_plot_ext = sort([children_idc_plot_ext, children_idc_plot_inline]);
+    children_idc_plot_inline = [];
+end
+if cfg.inline_all
+    children_idc_plot_inline = sort([children_idc_plot_inline, children_idc_plot_ext]);
+    children_idc_plot_ext = [];
+end
+
+% gather plot information
 if plot2d
     % basic idea:
     % for those special views (0,0), (180,0), (90,0), (-90,0),  (0,90), and (-90,90) no 3D
@@ -243,11 +285,6 @@ if plot2d
         use_imagesc = true;
     end
     
-    if cfg.print_all && ~cfg.use_imagesc
-        print_obj_idc = 1:numel(plot_handles.axes.Children);
-    else
-        print_obj_idc = children_idc_print;
-    end
     [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(print_obj_idc), abs([horz, vert]));
     
 else
@@ -382,37 +419,30 @@ if (cfg.write_tikz)
     
     fprintf(tfile_h, '\n');
     
-    if ~cfg.print_all
-        for i=1:numel(children_idc_plot_ext)
-            if plot2d
-                fprintf(tfile_h, '\t \t \\addplot+[%%\n');
-            else
-                fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
-            end
-            fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
-            fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks');
-            fprintf(tfile_h, '\t \t ]\n');
-            fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', plot_data_filenames{i});
-            fprintf(tfile_h, '\n');
-        end
+    for i=sort([children_idc_plot_ext, children_idc_plot_inline])
+        [~,ext_idx] = ismember(i, children_idc_plot_ext);
+        [~,inline_idx] = ismember(i, children_idc_plot_inline);
         
-        for i=1:numel(children_idc_plot_inline)
-            if plot2d
-                fprintf(tfile_h, '\t \t \\addplot+[%%\n');
-            else
-                fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
-            end
-            fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
-            fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks');
+        if plot2d
+            fprintf(tfile_h, '\t \t \\addplot+[%%\n');
+        else
+            fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
+        end
+        fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
+        fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks');
+        if ext_idx
+            fprintf(tfile_h, '\t \t ]\n');
+            fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', plot_data_filenames{ext_idx});
+        else
             fprintf(tfile_h, '\t \t ] plot coordinates {%%\n');
             if plot2d
-                fprintf(tfile_h, '\t \t \t (%f,%f)\n', plot_points_inline{i});
+                fprintf(tfile_h, '\t \t \t (%f,%f)\n', plot_points_inline{inline_idx});
             else
-                fprintf(tfile_h, '\t \t \t (%f,%f,%f)\n', plot_points_inline{i});
+                fprintf(tfile_h, '\t \t \t (%f,%f,%f)\n', plot_points_inline{inline_idx});
             end
             fprintf(tfile_h, '\t \t };\n');
-            fprintf(tfile_h, '\n');
         end
+        fprintf(tfile_h, '\n');
     end
     
     fprintf(tfile_h, '\t \\end{axis}\n');
