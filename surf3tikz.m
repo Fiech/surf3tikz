@@ -291,7 +291,7 @@ if plot2d
         use_imagesc = true;
     end
     
-    [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(print_obj_idc), abs([horz, vert]));
+    [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(children_idc_print), abs([horz, vert]));
     
 else
     % determine plot support points for TikZ
