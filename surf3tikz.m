@@ -821,12 +821,12 @@ range_horz = [Inf, -Inf];
 range_vert = [Inf, -Inf];
 
 for i=1:numel(g_objects)
-    XYZ_Data = [g_objects(i).XData(:)';g_objects(i).YData(:)';g_objects(i).ZData(:)'];
-    XY_Data = XYZ_Data(view_dims,:);
-    data_limits_horz(1) = min(XY_Data(1,:));
-    data_limits_horz(2) = max(XY_Data(1,:));
-    data_limits_vert(1) = min(XY_Data(2,:));
-    data_limits_vert(2) = max(XY_Data(2,:));
+    XYZ_Data_c = {g_objects(i).XData(:)';g_objects(i).YData(:)';g_objects(i).ZData(:)'};
+    XY_Data_c = XYZ_Data_c(view_dims);
+    data_limits_horz(1) = min(XY_Data_c{1});
+    data_limits_horz(2) = max(XY_Data_c{1});
+    data_limits_vert(1) = min(XY_Data_c{2});
+    data_limits_vert(2) = max(XY_Data_c{2});
     
     if data_limits_horz(1) < range_horz(1)
         range_horz(1) = data_limits_horz(1);
