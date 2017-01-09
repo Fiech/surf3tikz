@@ -175,15 +175,15 @@ end
     
 
 if iscellstr(plot_handles.axes.XLabel.String)
-    xlabel_txt = plot_handles.axes.XLabel.String{1};
+    horz_label_txt = plot_handles.axes.XLabel.String{1};
 else
-    xlabel_txt = plot_handles.axes.XLabel.String;
+    horz_label_txt = plot_handles.axes.XLabel.String;
 end
 
 if iscellstr(plot_handles.axes.YLabel.String)
-    ylabel_txt = plot_handles.axes.YLabel.String{1};
+    vert_label_txt = plot_handles.axes.YLabel.String{1};
 else
-    ylabel_txt = plot_handles.axes.YLabel.String;
+    vert_label_txt = plot_handles.axes.YLabel.String;
 end
 
 if iscellstr(plot_handles.axes.ZLabel.String)
@@ -267,11 +267,11 @@ if plot2d
 
     [horz, vert] = viewpoint_to_img_axes( current_view_point );
     
-    img_data_x = con_v_data(abs(horz),:)';
-    img_data_y = con_v_data(abs(vert),:)';
+    img_data_horz = con_v_data(abs(horz),:)';
+    img_data_vert = con_v_data(abs(vert),:)';
     
-    img_axes_x = con_axes(abs(horz),:);
-    img_axes_y = con_axes(abs(vert),:);
+    img_axes_horz = con_axes(abs(horz),:);
+    img_axes_vert = con_axes(abs(vert),:);
     
     img_x_reversed = (horz < 0);
     img_y_reversed = (vert < 0);
@@ -280,11 +280,11 @@ if plot2d
     pt_point_positions = [];
     
     % this is just xmin, xmax, ymin, and ymax
-    tikz_support_points = [img_data_x, img_data_y];
+    tikz_support_points = [img_data_horz, img_data_vert];
     
-    labels_txt = {xlabel_txt, ylabel_txt, zlabel_txt};
-    xlabel_txt = labels_txt{abs(horz)};
-    ylabel_txt = labels_txt{abs(vert)};
+    labels_txt = {horz_label_txt, vert_label_txt, zlabel_txt};
+    horz_label_txt = labels_txt{abs(horz)};
+    vert_label_txt = labels_txt{abs(vert)};
     
     if cfg.use_imagesc && abs(horz) < 3 && abs(vert) < 3
         % we are top down and can use imagesc if the user wants it
@@ -292,6 +292,11 @@ if plot2d
     end
     
     [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(children_idc_print), abs([horz, vert]));
+    
+    png_range_horz(1) = max(img_data_horz(1), print_data_range_horz(1));
+    png_range_horz(2) = min(img_data_horz(2), print_data_range_horz(2));
+    png_range_vert(1) = max(img_data_vert(1), print_data_range_vert(1));
+    png_range_vert(2) = min(img_data_vert(2), print_data_range_vert(2));
     
 else
     % determine plot support points for TikZ
@@ -312,7 +317,47 @@ if (cfg.write_png)
                 error('Could not find a surface plot to convert to image!')
             end
         end
+        
+        xdata = unique(plot_handles.axes.Children(surf_idx).XData);
+        ydata = unique(plot_handles.axes.Children(surf_idx).YData);
         cdata = plot_handles.axes.Children(surf_idx).CData;
+        
+        if (abs(horz(1)) == 1)
+            png_range_x = png_range_horz;
+            png_range_y = png_range_vert;
+        else
+            png_range_x = png_range_vert;
+            png_range_y = png_range_horz;
+        end
+        
+        [~, min_x_idx] = min(abs(png_range_x(1) - xdata));
+        min_x_idx = max(1,min_x_idx-1);
+        png_range_x(1) = xdata(min_x_idx);
+        
+        [~, max_x_idx] = min(abs(png_range_x(2) - xdata));
+        max_x_idx = min(size(cdata,2),max_x_idx+1);
+        png_range_x(2) = xdata(max_x_idx);
+        
+        [~, min_y_idx] = min(abs(png_range_y(1) - ydata));
+        min_y_idx = max(1,min_y_idx-1);
+        png_range_y(1) = ydata(min_y_idx);
+        
+        [~, max_y_idx] = min(abs(png_range_y(2) - ydata));
+        max_y_idx = min(size(cdata,1),max_y_idx+1);
+        png_range_y(2) = ydata(max_y_idx);
+        
+        if (abs(horz(1)) == 1)
+            png_range_horz = png_range_x;
+            png_range_vert = png_range_y;
+        else
+            png_range_horz = png_range_y;
+            png_range_vert = png_range_x;
+        end
+        
+        cdata = cdata(min_y_idx:max_y_idx, min_x_idx:max_x_idx);
+        
+        
+        
         if abs(horz) ~= 1
             cdata = cdata';
         end
@@ -363,18 +408,18 @@ if (cfg.write_tikz)
     fprintf(tfile_h, '\t \t enlargelimits = false,\n');
     
     if plot2d
-        fprintf(tfile_h, '\t \t xmin = %f,\n', img_axes_x(1));
-        fprintf(tfile_h, '\t \t xmax = %f,\n', img_axes_x(2));
-        fprintf(tfile_h, '\t \t ymin = %f,\n', img_axes_y(1));
-        fprintf(tfile_h, '\t \t ymax = %f,\n', img_axes_y(2));
+        fprintf(tfile_h, '\t \t xmin = %f,\n', img_axes_horz(1));
+        fprintf(tfile_h, '\t \t xmax = %f,\n', img_axes_horz(2));
+        fprintf(tfile_h, '\t \t ymin = %f,\n', img_axes_vert(1));
+        fprintf(tfile_h, '\t \t ymax = %f,\n', img_axes_vert(2));
         if img_x_reversed
             fprintf(tfile_h, '\t \t x dir = reverse,\n');
         end
         if img_y_reversed
             fprintf(tfile_h, '\t \t y dir = reverse,\n');
         end
-        fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
-        fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', horz_label_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', vert_label_txt);
     else
         
         fprintf(tfile_h, '\t \t xmin = %f,\n', axes_x(1));
@@ -383,8 +428,8 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t ymax = %f,\n', axes_y(2));
         fprintf(tfile_h, '\t \t zmin = %f,\n', axes_z(1));
         fprintf(tfile_h, '\t \t zmax = %f,\n', axes_z(2));
-        fprintf(tfile_h, '\t \t xlabel = {%s},\n', xlabel_txt);
-        fprintf(tfile_h, '\t \t ylabel = {%s},\n', ylabel_txt);
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', horz_label_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', vert_label_txt);
         fprintf(tfile_h, '\t \t zlabel = {%s},\n', zlabel_txt);
     end
     
@@ -408,7 +453,7 @@ if (cfg.write_tikz)
     if plot2d
         fprintf(tfile_h, '\t \t \\addplot graphics\n');
         fprintf(tfile_h, '\t \t \t [xmin=%f, xmax=%f, ymin=%f, ymax=%f]\n', ...
-            print_data_range_horz(1), print_data_range_horz(2), print_data_range_vert(1), print_data_range_vert(2) );
+            png_range_horz(1), png_range_horz(2), png_range_vert(1), png_range_vert(2) );
         fprintf(tfile_h, '\t \t {%s.png};\n', export_fname);
     else
         fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
