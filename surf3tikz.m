@@ -57,7 +57,7 @@ function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(
 % * There is a point to be made to use imagesc instead of print in some situations. However, for now
 %   it's not implemented in here yet.
 %
-% Written by Johannes Schlichenmaier, 2016
+% Written by Johannes Schlichenmaier, 2016-2017
 %
 
 %% basic input argument handling
