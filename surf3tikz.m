@@ -368,7 +368,10 @@ if (cfg.write_png)
             cdata = cdata(end:-1:1,:);
         end
         cmap = plot_handles.figure.Colormap;
-        im_scaled = round((cdata(end:-1:1,:)-min(cdata(:)))./(max(cdata(:))-min(cdata(:)))*size(cmap,1));
+        cdata_scaled = cdata;
+        cdata_scaled(cdata(:) < colorbar_limits(1)) = colorbar_limits(1);
+        cdata_scaled(cdata(:) > colorbar_limits(2)) = colorbar_limits(2);
+        im_scaled = round((cdata_scaled(end:-1:1,:)-colorbar_limits(1))./(colorbar_limits(2)-colorbar_limits(1))*size(cmap,1));
         imwrite(im_scaled, cmap, [export_name, '.png'], 'png')
     else
         if ~cfg.print_all
