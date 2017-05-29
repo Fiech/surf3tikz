@@ -1,4 +1,4 @@
-function [pt_point_positions, tikz_support_points, colorbar_limits] = surf3tikz(h_figure, export_name, cfg, debug)
+function [pt_point_positions, tikz_support_points, cdata_limits] = surf3tikz(h_figure, export_name, cfg, debug)
 %SURF3TIKZ converts a surf plot into a tikz file
 % This function takes a figure containing a surf plot and creates a tikz file and an according png
 % file. To achieve this, it automatically places data markers on points of the axes box around
@@ -211,9 +211,11 @@ plot_handles.axes.XLim = axes_x;
 plot_handles.axes.YLim = axes_y;
 plot_handles.axes.ZLim = axes_z;
 
-if isnan(colorbar_limits)
-    colorbar_limits = v_data_z;
-end
+% if isnan(colorbar_limits)
+%     colorbar_limits = v_data_z;
+% end
+
+cdata_limits = plot_handles.axes.CLim;
 
 
 %% gather plot data
@@ -369,9 +371,9 @@ if (cfg.write_png)
         end
         cmap = plot_handles.figure.Colormap;
         cdata_scaled = cdata;
-        cdata_scaled(cdata(:) < colorbar_limits(1)) = colorbar_limits(1);
-        cdata_scaled(cdata(:) > colorbar_limits(2)) = colorbar_limits(2);
-        im_scaled = round((cdata_scaled(end:-1:1,:)-colorbar_limits(1))./(colorbar_limits(2)-colorbar_limits(1))*size(cmap,1));
+        cdata_scaled(cdata(:) < cdata_limits(1)) = cdata_limits(1);
+        cdata_scaled(cdata(:) > cdata_limits(2)) = cdata_limits(2);
+        im_scaled = round((cdata_scaled(end:-1:1,:)-cdata_limits(1))./(cdata_limits(2)-cdata_limits(1))*size(cmap,1));
         imwrite(im_scaled, cmap, [export_name, '.png'], 'png')
     else
         if ~cfg.print_all
@@ -450,8 +452,8 @@ if (cfg.write_tikz)
     fprintf(tfile_h, '\t \t colorbar style = {%%,\n');
     fprintf(tfile_h, '\t \t \t ylabel = {%s},\n', colorbar_label);
     fprintf(tfile_h, '\t \t },\n');
-    fprintf(tfile_h, '\t \t point meta min = %f,\n', colorbar_limits(1));
-    fprintf(tfile_h, '\t \t point meta max = %f,\n', colorbar_limits(2));
+    fprintf(tfile_h, '\t \t point meta min = %f,\n', cdata_limits(1));
+    fprintf(tfile_h, '\t \t point meta max = %f,\n', cdata_limits(2));
     fprintf(tfile_h, '\t ]\n');
     if plot2d
         fprintf(tfile_h, '\t \t \\addplot graphics\n');
