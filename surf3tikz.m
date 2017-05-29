@@ -150,6 +150,15 @@ plot_handles.figure = copyobj(h_figure,0);
 plot_handles.axes = plot_handles.figure.CurrentAxes;
 
 
+%% find axes limits and explicitly set them
+
+[axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z] = get_plot_limits(plot_handles.axes);
+
+plot_handles.axes.XLim = axes_x;
+plot_handles.axes.YLim = axes_y;
+plot_handles.axes.ZLim = axes_z;
+
+
 %% prepare figure and gather some information
 % hide everything that is not an axes object
 plot_handles.axes.Visible = 'off';
@@ -157,6 +166,7 @@ title(plot_handles.axes,'')
 
 colorbar_limits = nan;
 colorbar_label = '';
+cdata_limits = plot_handles.axes.CLim;
 i=1;
 while true
     if isa(plot_handles.figure.Children(i), 'matlab.graphics.illustration.ColorBar')
@@ -201,21 +211,6 @@ if ~cfg.force_3d && ~sum(mod(current_view_point,90))
 else
     plot2d = false;
 end
-
-
-%% find axes limits and explicitly set them
-
-[axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z] = get_plot_limits(plot_handles.axes);
-
-plot_handles.axes.XLim = axes_x;
-plot_handles.axes.YLim = axes_y;
-plot_handles.axes.ZLim = axes_z;
-
-% if isnan(colorbar_limits)
-%     colorbar_limits = v_data_z;
-% end
-
-cdata_limits = plot_handles.axes.CLim;
 
 
 %% gather plot data
@@ -558,14 +553,14 @@ end
 end
 
 
-function [ axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z ] = get_plot_limits( axes )
+function [ axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z ] = get_plot_limits( cur_axes )
 %GET_PLOT_LIMITS returns the effective axes limits, as well as the limits of the visible data
 
-axes_x = axes.XLim;
-axes_y = axes.YLim;
-axes_z = axes.ZLim;
+axes_x = cur_axes.XLim;
+axes_y = cur_axes.YLim;
+axes_z = cur_axes.ZLim;
 
-[data_limit_x, data_limit_y, data_limit_z] = get_data_limits(axes);
+[data_limit_x, data_limit_y, data_limit_z] = get_data_limits(cur_axes);
 %TODO: what to do when data is Inf and so are axes?
 
 % use auto mode value for axes where neccessary
