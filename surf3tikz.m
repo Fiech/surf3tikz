@@ -442,7 +442,7 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t colormap name=parula,\n');
     elseif isequal(plot_handles.figure.Colormap(1,:), [0.26700401, 0.00487433, 0.32941519]) && ...
             isequal(plot_handles.figure.Colormap(end,:), [0.99324789, 0.90615657, 0.1439362])
-        fprintf(tfile_h, '\t \t colormap/viridis,\n');
+        fprintf(tfile_h, '\t \t colormap name=viridis,\n');
     end
     fprintf(tfile_h, '\t \t colorbar style = {%%,\n');
     fprintf(tfile_h, '\t \t \t ylabel = {%s},\n', colorbar_label);
