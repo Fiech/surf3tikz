@@ -521,12 +521,24 @@ global_data_limit_y = [Inf, -Inf];
 global_data_limit_z = [Inf, -Inf];
 
 for i=1:numel(axes.Children)
-    data_limits_x(1) = min(axes.Children(i).XData(:));
-    data_limits_x(2) = max(axes.Children(i).XData(:));
-    data_limits_y(1) = min(axes.Children(i).YData(:));
-    data_limits_y(2) = max(axes.Children(i).YData(:));
-    data_limits_z(1) = min(axes.Children(i).ZData(:));
-    data_limits_z(2) = max(axes.Children(i).ZData(:));
+    if ~isempty(axes.Children(i).XData(:))
+        data_limits_x(1) = min(axes.Children(i).XData(:));
+        data_limits_x(2) = max(axes.Children(i).XData(:));
+    else
+        data_limits_x = [Inf, -Inf];
+    end
+    if ~isempty(axes.Children(i).YData(:))
+        data_limits_y(1) = min(axes.Children(i).YData(:));
+        data_limits_y(2) = max(axes.Children(i).YData(:));
+    else
+        data_limits_y = [Inf, -Inf];
+    end
+    if ~isempty(axes.Children(i).ZData(:))
+        data_limits_z(1) = min(axes.Children(i).ZData(:));
+        data_limits_z(2) = max(axes.Children(i).ZData(:));
+    else
+        data_limits_z = [Inf, -Inf];
+    end
     
     if data_limits_x(1) < global_data_limit_x(1)
         global_data_limit_x(1) = data_limits_x(1);
