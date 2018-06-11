@@ -264,20 +264,14 @@ if plot2d
 
     [horz, vert] = viewpoint_to_img_axes( current_view_point );
     
-    img_data_horz = con_v_data(abs(horz),:)';
-    img_data_vert = con_v_data(abs(vert),:)';
+    global_data_lim_horz = con_v_data(abs(horz),:)';
+    global_data_lim_vert = con_v_data(abs(vert),:)';
     
     img_axes_horz = con_axes(abs(horz),:);
     img_axes_vert = con_axes(abs(vert),:);
     
-    img_x_reversed = (horz < 0);
-    img_y_reversed = (vert < 0);
-    
-    % point positions doesn't make sense
-    pt_point_positions = [];
-    
-    % this is just xmin, xmax, ymin, and ymax
-    tikz_support_points = [img_data_horz, img_data_vert];
+    img_axis_horz_reversed = (horz < 0);
+    img_axis_vert_reversed = (vert < 0);
     
     labels_txt = {horz_label_txt, vert_label_txt, zlabel_txt};
     horz_label_txt = labels_txt{abs(horz)};
@@ -288,12 +282,21 @@ if plot2d
         use_imagesc = true;
     end
     
-    [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(children_idc_print), abs([horz, vert]));
+    [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(children_idc_print), abs([horz, vert]), img_axes_horz, img_axes_vert);
     
-    png_range_horz(1) = max(img_data_horz(1), print_data_range_horz(1));
-    png_range_horz(2) = min(img_data_horz(2), print_data_range_horz(2));
-    png_range_vert(1) = max(img_data_vert(1), print_data_range_vert(1));
-    png_range_vert(2) = min(img_data_vert(2), print_data_range_vert(2));
+    if global_data_lim_horz(1) < print_data_range_horz(1) || global_data_lim_horz(2) > print_data_range_horz(2) || ...
+            global_data_lim_vert(1) < print_data_range_vert(1) || global_data_lim_vert(2) < print_data_range_vert(2)
+        % there is higher value data outside, let's grow a border later and set
+        % two points at the very two edges to prevent cropping.
+        grow_border = true;
+    else
+        grow_border = false;
+    end
+    
+    % for now set those to the visible data range, but they might get
+    % overwritten later if the border approach is used.
+    png_range_horz = print_data_range_horz;
+    png_range_vert = print_data_range_vert;
     
 else
     % determine plot support points for TikZ
@@ -320,11 +323,11 @@ if (cfg.write_png)
         cdata = plot_handles.axes.Children(surf_idx).CData;
         
         if (abs(horz(1)) == 1)
-            png_range_x = png_range_horz;
-            png_range_y = png_range_vert;
+            png_range_x = print_data_range_horz;
+            png_range_y = print_data_range_vert;
         else
-            png_range_x = png_range_vert;
-            png_range_y = png_range_horz;
+            png_range_x = print_data_range_vert;
+            png_range_y = print_data_range_horz;
         end
         
         [~, min_x_idx] = min(abs(png_range_x(1) - xdata));
@@ -376,10 +379,63 @@ if (cfg.write_png)
                 plot_handles.axes.Children(i).Visible = 'off';
             end
         end
+        if plot2d && grow_border
+            % adjust limits to show the ensured area
+            border_factor = 0.1;
+            helper_points = nan(2,3);
+            zero_dimension = [1,2,3];
+            switch abs(horz)
+                case 1
+                    plot_handles.axes.XLim = plot_handles.axes.XLim+[-1, 1]*border_factor*diff( plot_handles.axes.XLim);
+                    png_range_horz = plot_handles.axes.XLim;
+                    zero_dimension(zero_dimension==1) = [];
+                    helper_points(:,1) = png_range_horz;
+                case 2
+                    plot_handles.axes.YLim = plot_handles.axes.YLim+[-1, 1]*border_factor*diff( plot_handles.axes.YLim);
+                    png_range_horz = plot_handles.axes.YLim;
+                    zero_dimension(zero_dimension==2) = [];
+                    helper_points(:,2) = png_range_horz;
+                case 3
+                    plot_handles.axes.ZLim = plot_handles.axes.ZLim+[-1, 1]*border_factor*diff( plot_handles.axes.ZLim);
+                    png_range_horz = plot_handles.axes.ZLim;
+                    zero_dimension(zero_dimension==3) = [];
+                    helper_points(:,3) = png_range_horz;
+            end
+            switch abs(vert)
+                case 1
+                    plot_handles.axes.XLim = plot_handles.axes.XLim+[-1, 1]*border_factor*diff( plot_handles.axes.XLim);
+                    png_range_vert = plot_handles.axes.XLim;
+                    zero_dimension(zero_dimension==1) = [];
+                    helper_points(:,1) = png_range_vert;
+                case 2
+                    plot_handles.axes.YLim = plot_handles.axes.YLim+[-1, 1]*border_factor*diff( plot_handles.axes.YLim);
+                    png_range_vert = plot_handles.axes.YLim;
+                    zero_dimension(zero_dimension==2) = [];
+                    helper_points(:,2) = png_range_vert;
+                case 3
+                    plot_handles.axes.ZLim = plot_handles.axes.ZLim+[-1, 1]*border_factor*diff( plot_handles.axes.ZLim);
+                    png_range_vert = plot_handles.axes.ZLim;
+                    zero_dimension(zero_dimension==3) = [];
+                    helper_points(:,3) = png_range_vert;
+            end
+            
+            helper_points(:,zero_dimension) = [0;0];
+            hold(plot_handles.axes, 'on');
+            helper_point_plot = plot3(plot_handles.axes, helper_points(:,1), helper_points(:,2), helper_points(:,3), ...
+                'LineStyle', 'none', ...
+                'Marker', 'square', ...
+                'MarkerSize', 1, ...
+                'MarkerEdgeColor', 'none', ...
+                'MarkerFaceColor', 'black');
+            hold(plot_handles.axes, 'off');            
+        end
         print(plot_handles.figure, export_name, '-dpng', ['-r' num2str(cfg.export_dpi)]);
         system(['mogrify -transparent white ', export_name, '.png']);
         if plot2d
             system(['mogrify -trim ', export_name, '.png']);
+            if grow_border
+                delete(helper_point_plot);
+            end
         end
     end
 end
@@ -412,10 +468,10 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t xmax = %f,\n', img_axes_horz(2));
         fprintf(tfile_h, '\t \t ymin = %f,\n', img_axes_vert(1));
         fprintf(tfile_h, '\t \t ymax = %f,\n', img_axes_vert(2));
-        if img_x_reversed
+        if img_axis_horz_reversed
             fprintf(tfile_h, '\t \t x dir = reverse,\n');
         end
-        if img_y_reversed
+        if img_axis_vert_reversed
             fprintf(tfile_h, '\t \t y dir = reverse,\n');
         end
         fprintf(tfile_h, '\t \t xlabel = {%s},\n', horz_label_txt);
@@ -512,8 +568,7 @@ end
 %% additional functions
 
 function [ global_data_limit_x, global_data_limit_y, global_data_limit_z ] = get_data_limits( axes )
-%GET_DATA_LIMITS get the max and min values of the data plotted in specific axes
-%   This is not neccessarily the same as the plot ranges.
+%GET_DATA_LIMITS get the global max and min values of the data
 
 % [Inf, -Inf] is neccessary so e.g, lower data trumps the current min, starting from Inf
 global_data_limit_x = [Inf, -Inf];
@@ -522,18 +577,27 @@ global_data_limit_z = [Inf, -Inf];
 
 for i=1:numel(axes.Children)
     if ~isempty(axes.Children(i).XData(:))
+%         ind = axes.Children(i).XData(:) >= axes.XLim(1) & axes.Children(i).XData(:) <= axes.XLim(2) & ...
+%             axes.Children(i).YData(:) >= axes.YLim(1) & axes.Children(i).YData(:) <= axes.YLim(2) & ...
+%             axes.Children(i).ZData(:) >= axes.ZLim(1) & axes.Children(i).ZData(:) <= axes.ZLim(2);
         data_limits_x(1) = min(axes.Children(i).XData(:));
         data_limits_x(2) = max(axes.Children(i).XData(:));
     else
         data_limits_x = [Inf, -Inf];
     end
     if ~isempty(axes.Children(i).YData(:))
+%         ind = axes.Children(i).XData(:) >= axes.XLim(1) & axes.Children(i).XData(:) <= axes.XLim(2) & ...
+%             axes.Children(i).YData(:) >= axes.YLim(1) & axes.Children(i).YData(:) <= axes.YLim(2) & ...
+%             axes.Children(i).ZData(:) >= axes.ZLim(1) & axes.Children(i).ZData(:) <= axes.ZLim(2);
         data_limits_y(1) = min(axes.Children(i).YData(:));
         data_limits_y(2) = max(axes.Children(i).YData(:));
     else
         data_limits_y = [Inf, -Inf];
     end
     if ~isempty(axes.Children(i).ZData(:))
+%         ind = axes.Children(i).XData(:) >= axes.XLim(1) & axes.Children(i).XData(:) <= axes.XLim(2) & ...
+%             axes.Children(i).YData(:) >= axes.YLim(1) & axes.Children(i).YData(:) <= axes.YLim(2) & ...
+%             axes.Children(i).ZData(:) >= axes.ZLim(1) & axes.Children(i).ZData(:) <= axes.ZLim(2);
         data_limits_z(1) = min(axes.Children(i).ZData(:));
         data_limits_z(2) = max(axes.Children(i).ZData(:));
     else
@@ -566,7 +630,7 @@ end
 
 
 function [ axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z ] = get_plot_limits( cur_axes )
-%GET_PLOT_LIMITS returns the effective axes limits, as well as the limits of the visible data
+%GET_PLOT_LIMITS returns the effective axes limits, as well as the global data limits
 
 axes_x = cur_axes.XLim;
 axes_y = cur_axes.YLim;
@@ -597,9 +661,9 @@ if isinf(axes_z(2))
     axes_z(2) = data_limit_z(2);
 end
 
-v_data_x = [max(axes_x(1), data_limit_x(1)), min(axes_x(2), data_limit_x(2))];
-v_data_y = [max(axes_y(1), data_limit_y(1)), min(axes_y(2), data_limit_y(2))];
-v_data_z = [max(axes_z(1), data_limit_z(1)), min(axes_z(2), data_limit_z(2))];
+v_data_x = data_limit_x; %[max(axes_x(1), data_limit_x(1)), min(axes_x(2), data_limit_x(2))];
+v_data_y = data_limit_y; %[max(axes_y(1), data_limit_y(1)), min(axes_y(2), data_limit_y(2))];
+v_data_z = data_limit_z; %[max(axes_z(1), data_limit_z(1)), min(axes_z(2), data_limit_z(2))];
 
 end
 
@@ -695,7 +759,7 @@ box_points_turned = (rot_matrix_X*(rot_matrix_Z*box_points'))';
 % here is a high potential for bugs...):
 box_point_sets = [1,4,6,7;2,3,5,8];
 
-if ~isempty(cfg.box_point_idc);
+if ~isempty(cfg.box_point_idc)
     support_points = box_points(cfg.box_point_idc,:);
 else
     if numel(unique(ubp_rev_idc(box_point_sets(1,:)))) == 4
@@ -870,21 +934,42 @@ end
 end
 
 
-function [ range_horz, range_vert] = get_print_data_range( g_objects, view_dims )
+function [ range_horz, range_vert] = get_print_data_range( g_objects, view_dims, horz_lim, vert_lim )
 %GET_PRINT_DATA_RANGE returns the horizontal and vertical limits of the printed image data (2D
-%approach only)
+%approach only). This might be larger than the axes. Therefore the plot
+%will be adjusted before printing.
 
 range_horz = [Inf, -Inf];
 range_vert = [Inf, -Inf];
 
 for i=1:numel(g_objects)
     XYZ_Data_c = {g_objects(i).XData(:)';g_objects(i).YData(:)';g_objects(i).ZData(:)'};
-    XY_Data_c = XYZ_Data_c(view_dims);
-    data_limits_horz(1) = min(XY_Data_c{1});
-    data_limits_horz(2) = max(XY_Data_c{1});
-    data_limits_vert(1) = min(XY_Data_c{2});
-    data_limits_vert(2) = max(XY_Data_c{2});
     
+    if prod([max(size(XYZ_Data_c{1})),max(size(XYZ_Data_c{2})),max(size(XYZ_Data_c{3}))] ~= max(size(XYZ_Data_c{1})))
+        %this is a not a meshgridded 3d plot, rectifying...
+    end
+    
+    
+    HV_Data_c = XYZ_Data_c(view_dims);
+%     visible_ind = HV_Data_c{1} >= horz_lim(1) & HV_Data_c{1} <= horz_lim(2) & ...
+%         HV_Data_c{2} >= vert_lim(1) & HV_Data_c{2} <= vert_lim(2);
+    
+%     % the following lines select the either the FIRST available min and max H and V values OUTSIDE of the view or, if there is none, the
+%     % LAST available min and max H and V INSIDE of the view. This could also be done with IF constructs, but whatever...
+%     data_limits_horz(1) = min([max(HV_Data_c{1}(HV_Data_c{1} <= horz_lim(1))), min(HV_Data_c{1}(HV_Data_c{1} >= horz_lim(1)))]);
+%     data_limits_horz(2) = max([min(HV_Data_c{1}(HV_Data_c{1} >= horz_lim(2))), max(HV_Data_c{1}(HV_Data_c{1} <= horz_lim(2)))]);
+%     data_limits_vert(1) = min([max(HV_Data_c{2}(HV_Data_c{2} <= vert_lim(1))), min(HV_Data_c{2}(HV_Data_c{2} >= vert_lim(1)))]);
+%     data_limits_vert(2) = max([min(HV_Data_c{2}(HV_Data_c{2} >= vert_lim(2))), max(HV_Data_c{2}(HV_Data_c{2} <= vert_lim(2)))]);
+    
+    data_limits_horz(1) = min(HV_Data_c{1}(HV_Data_c{1} >= horz_lim(1)));
+    data_limits_horz(2) = max(HV_Data_c{1}(HV_Data_c{1} <= horz_lim(2)));
+    data_limits_vert(1) = min(HV_Data_c{2}(HV_Data_c{2} >= vert_lim(1)));
+    data_limits_vert(2) = max(HV_Data_c{2}(HV_Data_c{2} <= vert_lim(2)));
+    
+    
+    % TODO: for now this OK, but ideally it would try to take an outside of
+    % view point as little as possible away from the view edges to prevent
+    % undersampling of the actual viewed area and prevent to large images
     if data_limits_horz(1) < range_horz(1)
         range_horz(1) = data_limits_horz(1);
     end
