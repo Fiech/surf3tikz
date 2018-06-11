@@ -30,7 +30,10 @@ function [pt_point_positions, tikz_support_points, cdata_limits] = surf3tikz(h_f
 %      .force_3d: For views where one dimension is hidden to the viewer, a 2D approach is used by default.
 %       To force the use of the 3D approach set this to true, default: false
 %      .use_imagesc: For top down views, imagesc can be used as a way to save space for the image file
-%       file, default: false, WARNING: EXPERIMENTAL AND USES THE FIRST SURFACE PLOT IT CAN FIND
+%       file, default: false; Right now there are the following constraints:
+%         * EXPERIMENTAL: It's quite experimental, so you might run into issues with coloring.
+%         * For simplicity reasons, it only works with the first surface plot the algorihm finds.
+%         * Because this is not a 1:1 image of the plot, things like line styles of the surface plot are not considered
 %      .print_all: Per default, this function will write line plots into CSV files or writes them to the
 %       TikZ file as coordinates. Overwrite this parameter, if instead a 1:1 graphics copy of your plots
 %       should be created. Default: false
@@ -46,18 +49,21 @@ function [pt_point_positions, tikz_support_points, cdata_limits] = surf3tikz(h_f
 %          rectangle, default: false
 %
 % OUTPUT:
-%   pt_point_positions: the data point positions in the pt unit
-%   act_data_points: the data point coordinates
+%   pt_point_positions: the data point positions in the pt unit, in 2D
+%   mode, the horizontal limits of the export graphics
+%   act_data_points: the data point coordinates, in 2D
+%   mode, the vertical limits of the export graphics
 %   colorbar_limits: cdata limits of the colorbar currently used
 %
 % NOTES:
 % * If you try to run this script on a surf with a view of El=90°, tikz will throw a dimension error.
 % * The choice of box points right now is still not fully tested. It seems to work for now, but
 %   there is a chance that this has to be refined in the near future.
-% * There is a point to be made to use imagesc instead of print in some situations. However, for now
-%   it's not implemented in here yet.
+% * For top down flat surfaces, you might want to consider using the use_imagesc flag, because it potentally
+%   saves quite a lot of space.
 %
-% Written by Johannes Schlichenmaier, 2016-2017
+% Written by Johannes Schlichenmaier, 2016-2018
+% surf3tikz is licensed under the MIT license
 %
 
 %% basic input argument handling
@@ -129,6 +135,10 @@ if nargin < 4
     debug = false;
 end
 
+if cfg.use_imagesc
+    warning('The imagesc method is still experimental. Keep this in mind, when using it.');
+end
+
 if cfg.print_all && cfg.use_imagesc
     warning('Setting both the print_all and use_imagesc options to true may result in undesired outcome!');
 end
@@ -150,23 +160,26 @@ plot_handles.figure = copyobj(h_figure,0);
 plot_handles.axes = plot_handles.figure.CurrentAxes;
 
 
-%% find axes limits and explicitly set them
+%% find axes limits and explicitly set them again
 
-[axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z] = get_plot_limits(plot_handles.axes);
+[lim_x, lim_y, lim_z, ~] = get_plot_limits(plot_handles.axes);
 
-plot_handles.axes.XLim = axes_x;
-plot_handles.axes.YLim = axes_y;
-plot_handles.axes.ZLim = axes_z;
+plot_handles.axes.XLim = lim_x;
+plot_handles.axes.YLim = lim_y;
+plot_handles.axes.ZLim = lim_z;
 
 
 %% prepare figure and gather some information
-% hide everything that is not an axes object
+
+% hide axes and remove any title
 plot_handles.axes.Visible = 'off';
 title(plot_handles.axes,'')
 
 colorbar_limits = nan;
 colorbar_label = '';
 cdata_limits = plot_handles.axes.CLim;
+
+% remove everything in the figure that is not the axes and also extract colorbar information
 i=1;
 while true
     if isa(plot_handles.figure.Children(i), 'matlab.graphics.illustration.ColorBar')
@@ -182,24 +195,24 @@ while true
     end
     i = i+1;
 end
-    
 
+% extract label strings from axes
 if iscellstr(plot_handles.axes.XLabel.String)
-    horz_label_txt = plot_handles.axes.XLabel.String{1};
+    label_x_txt = plot_handles.axes.XLabel.String{1};
 else
-    horz_label_txt = plot_handles.axes.XLabel.String;
+    label_x_txt = plot_handles.axes.XLabel.String;
 end
 
 if iscellstr(plot_handles.axes.YLabel.String)
-    vert_label_txt = plot_handles.axes.YLabel.String{1};
+    label_y_txt = plot_handles.axes.YLabel.String{1};
 else
-    vert_label_txt = plot_handles.axes.YLabel.String;
+    label_y_txt = plot_handles.axes.YLabel.String;
 end
 
 if iscellstr(plot_handles.axes.ZLabel.String)
-    zlabel_txt = plot_handles.axes.ZLabel.String{1};
+    label_z_txt = plot_handles.axes.ZLabel.String{1};
 else
-    zlabel_txt = plot_handles.axes.ZLabel.String;
+    label_z_txt = plot_handles.axes.ZLabel.String;
 end
 
 
@@ -248,7 +261,7 @@ if cfg.inline_all
     children_idc_plot_ext = [];
 end
 
-% gather plot information
+% calulating support data for the mapping of the printed image into the axes
 if plot2d
     % basic idea:
     % for those special views (0,0), (180,0), (90,0), (-90,0),  (0,90), and (-90,90) no 3D
@@ -258,36 +271,41 @@ if plot2d
     % For an easy work flow the PNG file is trimed (the whitespace is
     % removed), hence the axis / xlim options and the real x,y,z values
     % must be taken into account for a correct axis label estimation
+    % NOTE: Here, a change in terminology from X/Y/Z to H/V is neccesary.
     
-    con_axes = [axes_x; axes_y; axes_z];
+    % get the global data limits of the printed data
+    [v_data_x, v_data_y, v_data_z] = get_data_limits(plot_handles.axes.Children(children_idc_print));
+    
+    con_axes = [lim_x; lim_y; lim_z];    
     con_v_data = [v_data_x; v_data_y; v_data_z];
 
+    % determine the horizontal and vertical axis (1=x, 2=y, 3=z, with negative numbers meaning inverted axis)
     [horz, vert] = viewpoint_to_img_axes( current_view_point );
     
-    global_data_lim_horz = con_v_data(abs(horz),:)';
-    global_data_lim_vert = con_v_data(abs(vert),:)';
+    global_print_data_range_horz = con_v_data(abs(horz),:)';
+    global_print_data_range_vert = con_v_data(abs(vert),:)';
     
-    img_axes_horz = con_axes(abs(horz),:);
-    img_axes_vert = con_axes(abs(vert),:);
+    lim_horz = con_axes(abs(horz),:);
+    lim_vert = con_axes(abs(vert),:);
     
-    img_axis_horz_reversed = (horz < 0);
-    img_axis_vert_reversed = (vert < 0);
+    axis_horz_reversed = (horz < 0);
+    axis_vert_reversed = (vert < 0);
     
-    labels_txt = {horz_label_txt, vert_label_txt, zlabel_txt};
-    horz_label_txt = labels_txt{abs(horz)};
-    vert_label_txt = labels_txt{abs(vert)};
+    labels_txt = {label_x_txt, label_y_txt, label_z_txt};
+    label_horz_txt = labels_txt{abs(horz)};
+    label_vert_txt = labels_txt{abs(vert)};
     
     if cfg.use_imagesc && abs(horz) < 3 && abs(vert) < 3
         % we are top down and can use imagesc if the user wants it
         use_imagesc = true;
     end
     
-    [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(children_idc_print), abs([horz, vert]), img_axes_horz, img_axes_vert);
+    % get the limit of the actually visible part of the printed data
+    [print_data_range_horz, print_data_range_vert] = get_print_data_range(plot_handles.axes.Children(children_idc_print), abs([horz, vert]), lim_horz, lim_vert);
     
-    if global_data_lim_horz(1) < print_data_range_horz(1) || global_data_lim_horz(2) > print_data_range_horz(2) || ...
-            global_data_lim_vert(1) < print_data_range_vert(1) || global_data_lim_vert(2) < print_data_range_vert(2)
-        % there is higher value data outside, let's grow a border later and set
-        % two points at the very two edges to prevent cropping.
+    if global_print_data_range_horz(1) < print_data_range_horz(1) || global_print_data_range_horz(2) > print_data_range_horz(2) || ...
+            global_print_data_range_vert(1) < print_data_range_vert(1) || global_print_data_range_vert(2) < print_data_range_vert(2)
+        % there is higher value data outside, let's grow a border later and place two points at the very two edges to prevent cropping.
         grow_border = true;
     else
         grow_border = false;
@@ -298,9 +316,17 @@ if plot2d
     png_range_horz = print_data_range_horz;
     png_range_vert = print_data_range_vert;
     
+    % in this mode, pt_point_positions output variable are the horizontal
+    % limits of the exported graphic, may be overwritten later
+    pt_point_positions = png_range_horz;
+    
+    % in this mode, pt_point_positions output variable are the vertical
+    % limits of the exported graphic, may be overwritten later
+    tikz_support_points = png_range_vert;
+    
 else
     % determine plot support points for TikZ
-    tikz_support_points = get_tikz_support_points(axes_x, axes_y, axes_z, current_view_point, cfg);
+    tikz_support_points = get_tikz_support_points(lim_x, lim_y, lim_z, current_view_point, cfg);
     
     % draw support markers and determine paper position
     [pt_point_positions, px_pos_order] = get_point_positions(tikz_support_points, plot_handles, cfg, debug);
@@ -419,6 +445,14 @@ if (cfg.write_png)
                     helper_points(:,3) = png_range_vert;
             end
             
+            % in this mode, pt_point_positions output variable are the horizontal
+            % limits of the exported graphic
+            pt_point_positions = png_range_horz;
+            
+            % in this mode, pt_point_positions output variable are the vertical
+            % limits of the exported graphic
+            tikz_support_points = png_range_vert;
+            
             helper_points(:,zero_dimension) = [0;0];
             hold(plot_handles.axes, 'on');
             helper_point_plot = plot3(plot_handles.axes, helper_points(:,1), helper_points(:,2), helper_points(:,3), ...
@@ -464,29 +498,29 @@ if (cfg.write_tikz)
     fprintf(tfile_h, '\t \t enlargelimits = false,\n');
     
     if plot2d
-        fprintf(tfile_h, '\t \t xmin = %f,\n', img_axes_horz(1));
-        fprintf(tfile_h, '\t \t xmax = %f,\n', img_axes_horz(2));
-        fprintf(tfile_h, '\t \t ymin = %f,\n', img_axes_vert(1));
-        fprintf(tfile_h, '\t \t ymax = %f,\n', img_axes_vert(2));
-        if img_axis_horz_reversed
+        fprintf(tfile_h, '\t \t xmin = %f,\n', lim_horz(1));
+        fprintf(tfile_h, '\t \t xmax = %f,\n', lim_horz(2));
+        fprintf(tfile_h, '\t \t ymin = %f,\n', lim_vert(1));
+        fprintf(tfile_h, '\t \t ymax = %f,\n', lim_vert(2));
+        if axis_horz_reversed
             fprintf(tfile_h, '\t \t x dir = reverse,\n');
         end
-        if img_axis_vert_reversed
+        if axis_vert_reversed
             fprintf(tfile_h, '\t \t y dir = reverse,\n');
         end
-        fprintf(tfile_h, '\t \t xlabel = {%s},\n', horz_label_txt);
-        fprintf(tfile_h, '\t \t ylabel = {%s},\n', vert_label_txt);
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', label_horz_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', label_vert_txt);
     else
         
-        fprintf(tfile_h, '\t \t xmin = %f,\n', axes_x(1));
-        fprintf(tfile_h, '\t \t xmax = %f,\n', axes_x(2));
-        fprintf(tfile_h, '\t \t ymin = %f,\n', axes_y(1));
-        fprintf(tfile_h, '\t \t ymax = %f,\n', axes_y(2));
-        fprintf(tfile_h, '\t \t zmin = %f,\n', axes_z(1));
-        fprintf(tfile_h, '\t \t zmax = %f,\n', axes_z(2));
-        fprintf(tfile_h, '\t \t xlabel = {%s},\n', horz_label_txt);
-        fprintf(tfile_h, '\t \t ylabel = {%s},\n', vert_label_txt);
-        fprintf(tfile_h, '\t \t zlabel = {%s},\n', zlabel_txt);
+        fprintf(tfile_h, '\t \t xmin = %f,\n', lim_x(1));
+        fprintf(tfile_h, '\t \t xmax = %f,\n', lim_x(2));
+        fprintf(tfile_h, '\t \t ymin = %f,\n', lim_y(1));
+        fprintf(tfile_h, '\t \t ymax = %f,\n', lim_y(2));
+        fprintf(tfile_h, '\t \t zmin = %f,\n', lim_z(1));
+        fprintf(tfile_h, '\t \t zmax = %f,\n', lim_z(2));
+        fprintf(tfile_h, '\t \t xlabel = {%s},\n', label_x_txt);
+        fprintf(tfile_h, '\t \t ylabel = {%s},\n', label_y_txt);
+        fprintf(tfile_h, '\t \t zlabel = {%s},\n', label_z_txt);
     end
     
     if (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
@@ -567,39 +601,30 @@ end
 
 %% additional functions
 
-function [ global_data_limit_x, global_data_limit_y, global_data_limit_z ] = get_data_limits( axes )
-%GET_DATA_LIMITS get the global max and min values of the data
+function [ global_data_limit_x, global_data_limit_y, global_data_limit_z ] = get_data_limits( gobjects )
+%GET_DATA_LIMITS get the global max and min values in X/Y/Z direction of the given graphical data objects
 
 % [Inf, -Inf] is neccessary so e.g, lower data trumps the current min, starting from Inf
 global_data_limit_x = [Inf, -Inf];
 global_data_limit_y = [Inf, -Inf];
 global_data_limit_z = [Inf, -Inf];
 
-for i=1:numel(axes.Children)
-    if ~isempty(axes.Children(i).XData(:))
-%         ind = axes.Children(i).XData(:) >= axes.XLim(1) & axes.Children(i).XData(:) <= axes.XLim(2) & ...
-%             axes.Children(i).YData(:) >= axes.YLim(1) & axes.Children(i).YData(:) <= axes.YLim(2) & ...
-%             axes.Children(i).ZData(:) >= axes.ZLim(1) & axes.Children(i).ZData(:) <= axes.ZLim(2);
-        data_limits_x(1) = min(axes.Children(i).XData(:));
-        data_limits_x(2) = max(axes.Children(i).XData(:));
+for i=1:numel(gobjects)
+    if ~isempty(gobjects(i).XData(:))
+        data_limits_x(1) = min(gobjects(i).XData(:));
+        data_limits_x(2) = max(gobjects(i).XData(:));
     else
         data_limits_x = [Inf, -Inf];
     end
-    if ~isempty(axes.Children(i).YData(:))
-%         ind = axes.Children(i).XData(:) >= axes.XLim(1) & axes.Children(i).XData(:) <= axes.XLim(2) & ...
-%             axes.Children(i).YData(:) >= axes.YLim(1) & axes.Children(i).YData(:) <= axes.YLim(2) & ...
-%             axes.Children(i).ZData(:) >= axes.ZLim(1) & axes.Children(i).ZData(:) <= axes.ZLim(2);
-        data_limits_y(1) = min(axes.Children(i).YData(:));
-        data_limits_y(2) = max(axes.Children(i).YData(:));
+    if ~isempty(gobjects(i).YData(:))
+        data_limits_y(1) = min(gobjects(i).YData(:));
+        data_limits_y(2) = max(gobjects(i).YData(:));
     else
         data_limits_y = [Inf, -Inf];
     end
-    if ~isempty(axes.Children(i).ZData(:))
-%         ind = axes.Children(i).XData(:) >= axes.XLim(1) & axes.Children(i).XData(:) <= axes.XLim(2) & ...
-%             axes.Children(i).YData(:) >= axes.YLim(1) & axes.Children(i).YData(:) <= axes.YLim(2) & ...
-%             axes.Children(i).ZData(:) >= axes.ZLim(1) & axes.Children(i).ZData(:) <= axes.ZLim(2);
-        data_limits_z(1) = min(axes.Children(i).ZData(:));
-        data_limits_z(2) = max(axes.Children(i).ZData(:));
+    if ~isempty(gobjects(i).ZData(:))
+        data_limits_z(1) = min(gobjects(i).ZData(:));
+        data_limits_z(2) = max(gobjects(i).ZData(:));
     else
         data_limits_z = [Inf, -Inf];
     end
@@ -630,13 +655,13 @@ end
 
 
 function [ axes_x, axes_y, axes_z, v_data_x, v_data_y, v_data_z ] = get_plot_limits( cur_axes )
-%GET_PLOT_LIMITS returns the effective axes limits, as well as the global data limits
+%GET_PLOT_LIMITS returns the effective axes limits, as well as the global data limits of all graphic objects on the axes
 
 axes_x = cur_axes.XLim;
 axes_y = cur_axes.YLim;
 axes_z = cur_axes.ZLim;
 
-[data_limit_x, data_limit_y, data_limit_z] = get_data_limits(cur_axes);
+[data_limit_x, data_limit_y, data_limit_z] = get_data_limits(cur_axes.Children);
 %TODO: what to do when data is Inf and so are axes?
 
 % use auto mode value for axes where neccessary
@@ -661,9 +686,9 @@ if isinf(axes_z(2))
     axes_z(2) = data_limit_z(2);
 end
 
-v_data_x = data_limit_x; %[max(axes_x(1), data_limit_x(1)), min(axes_x(2), data_limit_x(2))];
-v_data_y = data_limit_y; %[max(axes_y(1), data_limit_y(1)), min(axes_y(2), data_limit_y(2))];
-v_data_z = data_limit_z; %[max(axes_z(1), data_limit_z(1)), min(axes_z(2), data_limit_z(2))];
+v_data_x = data_limit_x;
+v_data_y = data_limit_y;
+v_data_z = data_limit_z;
 
 end
 
@@ -774,8 +799,9 @@ end
 
 
 function [ pt_point_positions, px_pos_order ] = get_point_positions( tikz_support_points, plot_handles, cfg, debug )
-%GET_POINT_POSITIONS determines the positions of the support plots in points
-% first, hide all other plots
+%GET_POINT_POSITIONS determines the positions of the support plots on the image in the points unit
+
+% first, hide all plots on the axes
 for i=1:numel(plot_handles.axes.Children)
     plot_handles.axes.Children(i).Visible = 'off';
 end
@@ -795,10 +821,11 @@ hold(plot_handles.axes, 'off');
 mid_row_pixel = zeros(4,1);
 mid_col_pixel = zeros(4,1);
 for i = 1:4
-    % setting cursor position
+    % setting marker to support position
     plot_handles.support_plot.XData = tikz_support_points(i,1);
     plot_handles.support_plot.YData = tikz_support_points(i,2);
     plot_handles.support_plot.ZData = tikz_support_points(i,3);
+    
     % create 2D image
     frame_data = getframe(plot_handles.figure);
     [image_data,~] = frame2im(frame_data);
@@ -819,21 +846,20 @@ end
 [ysize, ~] = size(flat_image_data);
 pgf_pixel_points = [mid_col_pixel, repmat(ysize,4,1)-mid_row_pixel];
 
-% calculate pts values
+% calculate points values considering the screen PPI
 pt_point_positions = pgf_pixel_points./cfg.screen_ppi./cfg.inch2point_ratio;
 if ~cfg.force_exact_values
     pt_point_positions = round(pt_point_positions);
 end
 
-% Apparently PGFPlot is a bit picky about the first two points. It apparently works best if both
-% pixel positions are different in the first two points. So let's look for a solution.
+% Apparently PGFPlot is a bit picky about the first two support points. It apparently works best if both
+% pixel positions (X and Y) are different in the first two points. So let's look for a solution.
 drawer = nan(1,2,4);
 drawer(1,:,:) = pt_point_positions';
 box_matrix = repmat(pt_point_positions,1,1,4);
 sub_matrix = repmat(drawer,4,1,1);
 diff_matrix = box_matrix - sub_matrix;
 possible_starts = squeeze(diff_matrix(:,1,:) ~= 0 & diff_matrix(:,2,:) ~= 0);
-
 px_pos_order = [0,0,0,0];
 for i=1:4
     poss_next_point = find(possible_starts(:,1));
@@ -848,6 +874,7 @@ for i=1:4
     end
 end
 
+% reenable the plots in the axes, leaving the support plot hidden
 for i=1:numel(plot_handles.axes.Children)
     plot_handles.axes.Children(i).Visible = 'on';
 end
@@ -881,6 +908,7 @@ if debug
     figure(plot_handles.figure)
 end
 
+% deleting the support plot
 delete(plot_handles.support_plot);
 
 end
@@ -915,7 +943,7 @@ end
 
 
 function [plot_parameters, plot_points ] = process_plots_inline(g_objects, plot2d, view_dims)
-%PROCESS_PLOTS saves line plots into CSV files
+%PROCESS_PLOTS extracts the line plot x/y/z positions
 num_objects = numel(g_objects);
 
 plot_points = cell(num_objects);
@@ -925,9 +953,9 @@ for i=1:num_objects
     XYZ_Data = [g_objects(i).XData;g_objects(i).YData;g_objects(i).ZData];
     if plot2d
         XY_Data = XYZ_Data(view_dims, :);
-        plot_points{i} = XY_Data; % in Tikz_File sprintf('%f,%f\n', XY_Data);
+        plot_points{i} = XY_Data;
     else
-        plot_points{i} = XYZ_Data; % in Tikz_File sprintf('%f,%f,%f\n', XYZ_Data);
+        plot_points{i} = XYZ_Data;
     end
 end
 
@@ -936,40 +964,21 @@ end
 
 function [ range_horz, range_vert] = get_print_data_range( g_objects, view_dims, horz_lim, vert_lim )
 %GET_PRINT_DATA_RANGE returns the horizontal and vertical limits of the printed image data (2D
-%approach only). This might be larger than the axes. Therefore the plot
-%will be adjusted before printing.
+% approach only). The values might be smaller than what is actually visible (does not interpolate).
 
 range_horz = [Inf, -Inf];
 range_vert = [Inf, -Inf];
 
 for i=1:numel(g_objects)
-    XYZ_Data_c = {g_objects(i).XData(:)';g_objects(i).YData(:)';g_objects(i).ZData(:)'};
-    
-    if prod([max(size(XYZ_Data_c{1})),max(size(XYZ_Data_c{2})),max(size(XYZ_Data_c{3}))] ~= max(size(XYZ_Data_c{1})))
-        %this is a not a meshgridded 3d plot, rectifying...
-    end
-    
+    XYZ_Data_c = {g_objects(i).XData(:)';g_objects(i).YData(:)';g_objects(i).ZData(:)'};    
     
     HV_Data_c = XYZ_Data_c(view_dims);
-%     visible_ind = HV_Data_c{1} >= horz_lim(1) & HV_Data_c{1} <= horz_lim(2) & ...
-%         HV_Data_c{2} >= vert_lim(1) & HV_Data_c{2} <= vert_lim(2);
-    
-%     % the following lines select the either the FIRST available min and max H and V values OUTSIDE of the view or, if there is none, the
-%     % LAST available min and max H and V INSIDE of the view. This could also be done with IF constructs, but whatever...
-%     data_limits_horz(1) = min([max(HV_Data_c{1}(HV_Data_c{1} <= horz_lim(1))), min(HV_Data_c{1}(HV_Data_c{1} >= horz_lim(1)))]);
-%     data_limits_horz(2) = max([min(HV_Data_c{1}(HV_Data_c{1} >= horz_lim(2))), max(HV_Data_c{1}(HV_Data_c{1} <= horz_lim(2)))]);
-%     data_limits_vert(1) = min([max(HV_Data_c{2}(HV_Data_c{2} <= vert_lim(1))), min(HV_Data_c{2}(HV_Data_c{2} >= vert_lim(1)))]);
-%     data_limits_vert(2) = max([min(HV_Data_c{2}(HV_Data_c{2} >= vert_lim(2))), max(HV_Data_c{2}(HV_Data_c{2} <= vert_lim(2)))]);
     
     data_limits_horz(1) = min(HV_Data_c{1}(HV_Data_c{1} >= horz_lim(1)));
     data_limits_horz(2) = max(HV_Data_c{1}(HV_Data_c{1} <= horz_lim(2)));
     data_limits_vert(1) = min(HV_Data_c{2}(HV_Data_c{2} >= vert_lim(1)));
     data_limits_vert(2) = max(HV_Data_c{2}(HV_Data_c{2} <= vert_lim(2)));
     
-    
-    % TODO: for now this OK, but ideally it would try to take an outside of
-    % view point as little as possible away from the view edges to prevent
-    % undersampling of the actual viewed area and prevent to large images
     if data_limits_horz(1) < range_horz(1)
         range_horz(1) = data_limits_horz(1);
     end
