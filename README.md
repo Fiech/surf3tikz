@@ -172,9 +172,13 @@ visible and the two visible dimensions line up with the two paper dimensions. Th
 
 * By default, instead of 3D, a 2D axis is added in TikZ, to increase stability. This behaviour can
   be suppressed.
+* For zoomed in 2D viewed data the cropping function used in surf3tikz may lead to wrong start and end
+  mapping points. surf3tikz now detects the possibility of that and solves this by zooming out the view
+  port and placing two small dots in the far edges of the view port, thus preventing a overzealous crop.
 * Additionally, there is an experimental functionality available for top down (bird's eye views)
   that can save a significant amount of image size, by writing the actual pixel size of the surface
-  plot instead of the dpi based version. This however is only available to the first surface plot as
+  plot instead of the dpi based version. To use this, set the 'use_imagesc' switch to true in the config
+  struct. This however is only available to the first surface plot as
   of now. An example pixel sized approach is shown here:
 
 ![Example Top Down Plot](image_sc_plot.png)
