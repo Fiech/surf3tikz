@@ -453,7 +453,7 @@ if (cfg.write_png)
             % limits of the exported graphic
             tikz_support_points = png_range_vert;
             
-            helper_points(:,zero_dimension) = [1;1]*mean(con_axes(zero_dimension,:))
+            helper_points(:,zero_dimension) = [1;1]*mean(con_axes(zero_dimension,:));
             hold(plot_handles.axes, 'on');
             helper_point_plot = plot3(plot_handles.axes, helper_points(:,1), helper_points(:,2), helper_points(:,3), ...
                 'LineStyle', 'none', ...
