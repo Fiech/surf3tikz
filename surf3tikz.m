@@ -280,7 +280,7 @@ if plot2d
     con_v_data = [v_data_x; v_data_y; v_data_z];
 
     % determine the horizontal and vertical axis (1=x, 2=y, 3=z, with negative numbers meaning inverted axis)
-    [horz, vert] = viewpoint_to_img_axes( current_view_point );
+    [horz, vert] = viewpoint_to_img_axes( current_view_point, {plot_handles.axes.XDir, plot_handles.axes.YDir, plot_handles.axes.ZDir} );
     
     global_print_data_range_horz = con_v_data(abs(horz),:)';
     global_print_data_range_vert = con_v_data(abs(vert),:)';
@@ -693,9 +693,20 @@ v_data_z = data_limit_z;
 end
 
 
-function [ horz, vert ] = viewpoint_to_img_axes( viewpoint )
+function [ horz, vert ] = viewpoint_to_img_axes( viewpoint, axis_dir )
 %VIEPOINT_TO_IMG_AXES converts a figure viewport to a 2D image (X,Y) CS
 % returns the horizontal and vertical dimension (x=1, y=2, z=3)
+
+axis_dir_multiplier = [1,1,1];
+if strcmp(axis_dir{1}, 'reverse')
+    axis_dir_multiplier(1) = -1;
+end
+if strcmp(axis_dir{2}, 'reverse')
+    axis_dir_multiplier(2) = -1;
+end
+if strcmp(axis_dir{3}, 'reverse')
+    axis_dir_multiplier(3) = -1;
+end
 
 viewpoint = wrapTo180(viewpoint);
 
@@ -729,6 +740,10 @@ else
         vert = z;
     end
 end
+
+% account for Axis directions
+horz = axis_dir_multiplier(abs(horz))*horz;
+vert = axis_dir_multiplier(abs(vert))*vert;
 
 end
 
