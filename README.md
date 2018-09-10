@@ -19,7 +19,7 @@ from scratch.
 
 ### Notes of importance
 
-* This function was only tested with _Ubuntu Linux_, _PGFPlots_ 2016/01/06 v1.13, MATLAB R2016a
+* This function was only tested with _Ubuntu Linux_, _PGFPlots_ 2016/01/06 v1.13, MATLAB R2016a/b, R2017a/b, R2017a
 * To get rid of the white background of the PNG, the script makes a system call to _mogrify_, which is part
   of the _ImageMagick_ suite (ImageMagick 6.8.9-9 was used). If you cannot provide this program, you
   might want to do this step (white -> transparent) later on with an external program.
@@ -47,7 +47,14 @@ For further information on the particulars of the in- and output parameters see 
 within the file.
 
 The simplest way to use the function is to open your figure and choose a desired view. Then call the
-function with `gcf` for the first and an arbitrary name for the second parameter.
+function with `gcf` for the first and an arbitrary name for the second parameter:
+
+```Matlab
+[X,Y] = meshgrid(1:0.5:10,1:20);
+Z = sin(X) + cos(Y);
+surf(X,Y,Z)
+surf3tikz(gcf, 'somename') % no extension needed, output filenames will be preceeded by "somename"
+```
 
 ### Correct choice of screen ppi
 
