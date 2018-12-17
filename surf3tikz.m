@@ -235,7 +235,9 @@ children_idc_plot_ext = [];
 children_idc_plot_inline = [];
 children_idc_print = [];
 for i=1:numel(plot_handles.axes.Children)
-    if isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Line')
+    if isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Line') || ...
+            isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Quiver') || ...
+            isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Scatter')
         if numel(plot_handles.axes.Children(i).XData) > cfg.inline_limit
             children_idc_plot_ext(end+1) = i;
         else
