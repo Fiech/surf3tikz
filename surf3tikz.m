@@ -513,13 +513,21 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t xlabel = {%s},\n', label_horz_txt);
         fprintf(tfile_h, '\t \t ylabel = {%s},\n', label_vert_txt);
     else
-        
         fprintf(tfile_h, '\t \t xmin = %f,\n', lim_x(1));
         fprintf(tfile_h, '\t \t xmax = %f,\n', lim_x(2));
+        if strcmp(plot_handles.axes.XDir, 'reverse')
+            fprintf(tfile_h, '\t \t x dir = reverse,\n');
+        end
         fprintf(tfile_h, '\t \t ymin = %f,\n', lim_y(1));
         fprintf(tfile_h, '\t \t ymax = %f,\n', lim_y(2));
+        if strcmp(plot_handles.axes.YDir, 'reverse')
+            fprintf(tfile_h, '\t \t y dir = reverse,\n');
+        end
         fprintf(tfile_h, '\t \t zmin = %f,\n', lim_z(1));
         fprintf(tfile_h, '\t \t zmax = %f,\n', lim_z(2));
+        if strcmp(plot_handles.axes.ZDir, 'reverse')
+            fprintf(tfile_h, '\t \t z dir = reverse,\n');
+        end
         fprintf(tfile_h, '\t \t xlabel = {%s},\n', label_x_txt);
         fprintf(tfile_h, '\t \t ylabel = {%s},\n', label_y_txt);
         fprintf(tfile_h, '\t \t zlabel = {%s},\n', label_z_txt);
