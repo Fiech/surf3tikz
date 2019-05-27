@@ -580,7 +580,7 @@ if (cfg.write_tikz)
             fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
         end
         fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
-        fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks');
+        fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks,');
         if ext_idx
             fprintf(tfile_h, '\t \t ]\n');
             fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', plot_data_filenames{ext_idx});
