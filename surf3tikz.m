@@ -635,19 +635,19 @@ global_data_limit_y = [Inf, -Inf];
 global_data_limit_z = [Inf, -Inf];
 
 for i=1:numel(gobjects)
-    if ~isempty(gobjects(i).XData(:))
+    if isprop(gobjects(i), 'XData') && ~isempty(gobjects(i).XData(:))
         data_limits_x(1) = min(gobjects(i).XData(:));
         data_limits_x(2) = max(gobjects(i).XData(:));
     else
         data_limits_x = [Inf, -Inf];
     end
-    if ~isempty(gobjects(i).YData(:))
+    if isprop(gobjects(i), 'XData') && ~isempty(gobjects(i).YData(:))
         data_limits_y(1) = min(gobjects(i).YData(:));
         data_limits_y(2) = max(gobjects(i).YData(:));
     else
         data_limits_y = [Inf, -Inf];
     end
-    if ~isempty(gobjects(i).ZData(:))
+    if isprop(gobjects(i), 'XData') && ~isempty(gobjects(i).ZData(:))
         data_limits_z(1) = min(gobjects(i).ZData(:));
         data_limits_z(2) = max(gobjects(i).ZData(:));
     else
