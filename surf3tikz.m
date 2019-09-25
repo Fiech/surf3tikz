@@ -175,6 +175,7 @@ plot_handles.axes.ZLim = lim_z;
 plot_handles.axes.Visible = 'off';
 title(plot_handles.axes,'')
 
+has_colorbar = false;
 colorbar_limits = nan;
 colorbar_label = '';
 cdata_limits = plot_handles.axes.CLim;
@@ -186,7 +187,12 @@ while true
         colorbar_limits = plot_handles.figure.Children(i).Limits;
         colorbar_label = plot_handles.figure.Children(i).Label.String;
     end
-    if ~isa(plot_handles.figure.Children(i), 'matlab.graphics.axis.Axes')
+    if isa(plot_handles.figure.Children(i),'matlab.graphics.illustration.ColorBar')
+        if strcmpi(plot_handles.figure.Children(i).Visible, 'on')
+            plot_handles.figure.Children(i).Visible = 'off';
+            has_colorbar = true;
+        end
+    elseif ~isa(plot_handles.figure.Children(i), 'matlab.graphics.axis.Axes')
         delete(plot_handles.figure.Children(i))
         i = i-1;
     end
@@ -229,6 +235,7 @@ end
 %% gather plot data
 current_view_point = plot_handles.axes.View;
 use_imagesc = false;
+has_imageable = false;
 
 % determine graphic objects to plot vs. to print
 children_idc_plot_ext = [];
@@ -263,7 +270,9 @@ if cfg.inline_all
     children_idc_plot_ext = [];
 end
 
-% calulating support data for the mapping of the printed image into the axes
+has_imageable = ~isempty(children_idc_print);
+
+%% calulating support data for the mapping of the printed image into the axes
 if plot2d
     % basic idea:
     % for those special views (0,0), (180,0), (90,0), (-90,0),  (0,90), and (-90,90) no 3D
@@ -335,7 +344,7 @@ else
 end
 
 %% print image data
-if (cfg.write_png)
+if (cfg.write_png) && has_imageable
     if use_imagesc
         % select the first surf plot
         for surf_idx=1:numel(plot_handles.axes.Children)
@@ -499,6 +508,7 @@ if (cfg.write_tikz)
     fprintf(tfile_h, '\t \t grid,\n');
     fprintf(tfile_h, '\t \t enlargelimits = false,\n');
     
+    % write axis configuration
     if plot2d
         fprintf(tfile_h, '\t \t xmin = %f,\n', lim_horz(1));
         fprintf(tfile_h, '\t \t xmax = %f,\n', lim_horz(2));
@@ -533,42 +543,47 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\t \t zlabel = {%s},\n', label_z_txt);
     end
     
-    if (current_view_point(1) == 90 && current_view_point(2) == -90) || (current_view_point(1) == -90 && current_view_point(2) == 90)
-    else
-    end
-    
-    fprintf(tfile_h, '\t \t colorbar,\n');
-    if isequal(plot_handles.figure.Colormap, parula)
-        fprintf(tfile_h, '\t \t colormap name=parula,\n');
-    elseif isequal(plot_handles.figure.Colormap(1,:), [0.26700401, 0.00487433, 0.32941519]) && ...
-            isequal(plot_handles.figure.Colormap(end,:), [0.99324789, 0.90615657, 0.1439362])
-        fprintf(tfile_h, '\t \t colormap name=viridis,\n');
-    end
-    fprintf(tfile_h, '\t \t colorbar style = {%%,\n');
-    fprintf(tfile_h, '\t \t \t ylabel = {%s},\n', colorbar_label);
-    fprintf(tfile_h, '\t \t },\n');
-    fprintf(tfile_h, '\t \t point meta min = %f,\n', cdata_limits(1));
-    fprintf(tfile_h, '\t \t point meta max = %f,\n', cdata_limits(2));
-    fprintf(tfile_h, '\t ]\n');
-    if plot2d
-        fprintf(tfile_h, '\t \t \\addplot graphics\n');
-        fprintf(tfile_h, '\t \t \t [xmin=%f, xmax=%f, ymin=%f, ymax=%f]\n', ...
-            png_range_horz(1), png_range_horz(2), png_range_vert(1), png_range_vert(2) );
-        fprintf(tfile_h, '\t \t {%s.png};\n', export_fname);
-    else
-        fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
-        fprintf(tfile_h, '\t \t \t points={%% important\n');
-        for i=px_pos_order
-            fprintf(tfile_h, '\t \t \t \t (%f,%f,%f) => (%f,%f)\n', tikz_support_points(i,1), ...
-                tikz_support_points(i,2), ...
-                tikz_support_points(i,3), ...
-                pt_point_positions(i,1), ...
-                pt_point_positions(i,2));
+    % colorbar
+    if has_colorbar
+        fprintf(tfile_h, '\t \t colorbar,\n');
+        if isequal(plot_handles.figure.Colormap, parula)
+            fprintf(tfile_h, '\t \t colormap name=parula,\n');
+        elseif isequal(plot_handles.figure.Colormap(1,:), [0.26700401, 0.00487433, 0.32941519]) && ...
+                isequal(plot_handles.figure.Colormap(end,:), [0.99324789, 0.90615657, 0.1439362])
+            fprintf(tfile_h, '\t \t colormap name=viridis,\n');
         end
-        fprintf(tfile_h, '\t \t }]{%s.png};\n', export_fname);
+        fprintf(tfile_h, '\t \t colorbar style = {%%,\n');
+        fprintf(tfile_h, '\t \t \t ylabel = {%s},\n', colorbar_label);
+        fprintf(tfile_h, '\t \t },\n');
+        fprintf(tfile_h, '\t \t point meta min = %f,\n', cdata_limits(1));
+        fprintf(tfile_h, '\t \t point meta max = %f,\n', cdata_limits(2));
     end
     
+    fprintf(tfile_h, '\t ]\n');
     fprintf(tfile_h, '\n');
+    
+    % image plot
+    if has_imageable
+        if plot2d
+            fprintf(tfile_h, '\t \t \\addplot graphics\n');
+            fprintf(tfile_h, '\t \t \t [xmin=%f, xmax=%f, ymin=%f, ymax=%f]\n', ...
+                png_range_horz(1), png_range_horz(2), png_range_vert(1), png_range_vert(2) );
+            fprintf(tfile_h, '\t \t {%s.png};\n', export_fname);
+        else
+            fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
+            fprintf(tfile_h, '\t \t \t points={%% important\n');
+            for i=px_pos_order
+                fprintf(tfile_h, '\t \t \t \t (%f,%f,%f) => (%f,%f)\n', tikz_support_points(i,1), ...
+                    tikz_support_points(i,2), ...
+                    tikz_support_points(i,3), ...
+                    pt_point_positions(i,1), ...
+                    pt_point_positions(i,2));
+            end
+            fprintf(tfile_h, '\t \t }]{%s.png};\n', export_fname);
+        end
+        fprintf(tfile_h, '\n');
+    end
+    
     
     for i=sort([children_idc_plot_ext, children_idc_plot_inline])
         [~,ext_idx] = ismember(i, children_idc_plot_ext);
