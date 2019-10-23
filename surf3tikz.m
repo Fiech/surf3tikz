@@ -475,9 +475,17 @@ if (cfg.write_png) && has_imageable
             hold(plot_handles.axes, 'off');            
         end
         print(plot_handles.figure, export_name, '-dpng', ['-r' num2str(cfg.export_dpi)]);
-        system(['mogrify -transparent white ', export_name, '.png']);
+        syscall = ['mogrify -transparent white ', export_name, '.png'];
+        [sc_ec, sc_msg] = system(syscall);
+        if sc_ec
+            warning('Mogrify transparency call "%s" failed with error code %d: %s', syscall, sc_ec, sc_msg);
+        end
         if plot2d
-            system(['mogrify -trim ', export_name, '.png']);
+            syscall = ['mogrify -trim ', export_name, '.png'];
+            [sc_ec, sc_msg] = system(syscall);
+            if sc_ec
+                warning('Mogrify trim call "%s" failed with error code %d: %s', syscall, sc_ec, sc_msg);
+            end
             if grow_border
                 delete(helper_point_plot);
             end
