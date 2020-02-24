@@ -796,8 +796,8 @@ box_points(8,:) = [limits_x(2),limits_y(2),limits_z(2)];
 
 % rotate box points and find out which points lie on top of each other
 
-rot_matrix_Z = rotz(-view_point(1));
-rot_matrix_X = rotx(view_point(2));
+rot_matrix_Z = [cosd(-view_point(1)), -sind(-view_point(1)), 0; sind(-view_point(1)), cosd(-view_point(1)) 0; 0, 0, 1]; % == rotz(-view_point(1));
+rot_matrix_X = [1, 0, 0; 0, cosd(view_point(2)), -sind(view_point(2)); 0, sind(view_point(2)), cosd(view_point(2))]; % == rotx(view_point(2));
 box_points_turned = (rot_matrix_X*(rot_matrix_Z*box_points'))';
 [~, ~, ubp_rev_idc] = unique([box_points_turned(:,1), box_points_turned(:,3)], 'rows');
 
