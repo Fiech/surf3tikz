@@ -92,7 +92,7 @@ if ~isfield(cfg, 'write_fig')
 end
 
 if ~isfield(cfg, 'screen_ppi')
-    cfg.screen_ppi = get(0,'ScreenPixelsPerInch');
+    cfg.screen_ppi = get(h_figure,'ScreenPixelsPerInch');
 end
 
 if ~isfield(cfg, 'inch2point_ratio')
