@@ -155,6 +155,14 @@ if cfg.ext_all && cfg.inline_all
 end
 
 
+%% set up constants to use during the function
+s3t_constants.GTO_OTHER = 0;
+s3t_constants.GTO_LINE = 1;
+s3t_constants.GTO_SCATTER = 2;
+s3t_constants.GTO_QUIVER = 3;
+s3t_constants.GTO_POLYGON = 4;
+
+
 %% copy the current figure to work on it instead of the original
 plot_handles.figure = copyobj(h_figure,0);
 plot_handles.axes = plot_handles.figure.CurrentAxes;
@@ -238,20 +246,40 @@ use_imagesc = false;
 has_imageable = false;
 
 % determine graphic objects to plot vs. to print
+num_children = numel(plot_handles.axes.Children);
+children_idc_plot_gto = zeros(1, num_children);
 children_idc_plot_ext = [];
 children_idc_plot_inline = [];
 children_idc_print = [];
-for i=1:numel(plot_handles.axes.Children)
-    if isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Line') || ...
-            isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Quiver') || ...
-            isa(plot_handles.axes.Children(i), 'matlab.graphics.chart.primitive.Scatter')
-        if numel(plot_handles.axes.Children(i).XData) > cfg.inline_limit
-            children_idc_plot_ext(end+1) = i;
-        else
-            children_idc_plot_inline(end+1) = i;
-        end
+
+for i_child=1:num_children
+    print_child = false;
+    child_cardinality = 0;
+    switch class(plot_handles.axes.Children(i_child))
+        case 'matlab.graphics.chart.primitive.Line'
+            children_idc_plot_gto(i_child) = s3t_constants.GTO_LINE;
+            child_cardinality = numel(plot_handles.axes.Children(i_child).XData);
+        case 'matlab.graphics.chart.primitive.Quiver'
+            children_idc_plot_gto(i_child) = s3t_constants.GTO_QUIVER;
+            child_cardinality = numel(plot_handles.axes.Children(i_child).XData);
+        case 'matlab.graphics.chart.primitive.Scatter'
+            children_idc_plot_gto(i_child) = s3t_constants.GTO_SCATTER;
+            child_cardinality = numel(plot_handles.axes.Children(i_child).XData);
+        case 'matlab.graphics.primitive.Polygon'
+            children_idc_plot_gto(i_child) = s3t_constants.GTO_POLYGON;
+            child_cardinality = size(plot_handles.axes.Children(i_child).Shape.Vertices,1);
+        otherwise
+            children_idc_plot_gto(i_child) = s3t_constants.GTO_OTHER;
+            print_child = true;
+    end
+    if print_child
+        children_idc_print(end+1) = i_child;
     else
-        children_idc_print(end+1) = i;
+        if child_cardinality > cfg.inline_limit
+            children_idc_plot_ext(end+1) = i_child;
+        else
+            children_idc_plot_inline(end+1) = i_child;
+        end
     end
 end
 
@@ -504,8 +532,8 @@ else
     view_dims = [];
 end
 
-[plot_parameters_ext, plot_data_filenames] = process_plots_ext(plot_handles.axes.Children(children_idc_plot_ext), export_name, plot2d, abs(view_dims));
-[plot_parameters_inline, plot_points_inline] = process_plots_inline(plot_handles.axes.Children(children_idc_plot_inline), plot2d, abs(view_dims));
+[plot_parameters_ext, plot_data_filenames] = process_plots_ext(plot_handles.axes.Children(children_idc_plot_ext), children_idc_plot_gto(children_idc_plot_ext), export_name, plot2d, abs(view_dims), s3t_constants);
+[plot_parameters_inline, plot_points_inline] = process_plots_inline(plot_handles.axes.Children(children_idc_plot_inline), children_idc_plot_gto(children_idc_plot_inline), plot2d, abs(view_dims), s3t_constants);
 
 if (cfg.write_tikz)
     tfile_h = fopen([export_name, '.tikz'], 'w');
@@ -962,7 +990,7 @@ delete(plot_handles.support_plot);
 end
 
 
-function [plot_parameters, file_names ] = process_plots_ext(g_objects, write_name, plot2d, view_dims)
+function [plot_parameters, file_names ] = process_plots_ext(g_objects, got, write_name, plot2d, view_dims, s3t_constants)
 %PROCESS_PLOTS saves line plots into CSV files
 num_objects = numel(g_objects);
 [file_path, file_base_name, ~] = fileparts(write_name);
@@ -974,10 +1002,19 @@ end
 file_names = cell(num_objects);
 plot_parameters = cell(num_objects);
 
-for i=1:num_objects
-    XYZ_Data = [g_objects(i).XData;g_objects(i).YData;g_objects(i).ZData];
-    file_names{i} = sprintf([file_base_name, '-plot-%d.csv'], i);
-    f_handle = fopen([file_path filesep file_names{i}], 'w+');
+for i_obj=1:num_objects
+    switch got(i_obj)
+        case {s3t_constants.GTO_LINE;
+                s3t_constants.GTO_SCATTER;
+                s3t_constants.GTO_QUIVER}
+            XYZ_Data = [g_objects(i_obj).XData;g_objects(i_obj).YData;g_objects(i_obj).ZData];
+        case s3t_constants.GTO_POLYGON
+            XYZ_Data = [g_objects(i_obj).Shape.Vertices';zeros(1,size(g_objects(i_obj).Shape.Vertices,1))];
+        otherwise
+            error('Do not know what to do with this type of graphics object');
+    end
+    file_names{i_obj} = sprintf([file_base_name, '-plot-%d.csv'], i_obj);
+    f_handle = fopen([file_path filesep file_names{i_obj}], 'w+');
     if plot2d
         XY_Data = XYZ_Data(view_dims, :);
         fprintf(f_handle, '%f,%f\n', XY_Data);
@@ -990,20 +1027,29 @@ end
 end
 
 
-function [plot_parameters, plot_points ] = process_plots_inline(g_objects, plot2d, view_dims)
+function [plot_parameters, plot_points ] = process_plots_inline(g_objects, got, plot2d, view_dims, s3t_constants)
 %PROCESS_PLOTS extracts the line plot x/y/z positions
 num_objects = numel(g_objects);
 
 plot_points = cell(num_objects);
 plot_parameters = cell(num_objects);
 
-for i=1:num_objects
-    XYZ_Data = [g_objects(i).XData;g_objects(i).YData;g_objects(i).ZData];
+for i_obj=1:num_objects
+    switch got(i_obj)
+        case {s3t_constants.GTO_LINE;
+                s3t_constants.GTO_SCATTER;
+                s3t_constants.GTO_QUIVER}
+            XYZ_Data = [g_objects(i_obj).XData;g_objects(i_obj).YData;g_objects(i_obj).ZData];
+        case s3t_constants.GTO_POLYGON
+            XYZ_Data = [g_objects(i_obj).Shape.Vertices';zeros(1,size(g_objects(i_obj).Shape.Vertices,1))];
+        otherwise
+            error('Do not know what to do with this type of graphics object');
+    end
     if plot2d
         XY_Data = XYZ_Data(view_dims, :);
-        plot_points{i} = XY_Data;
+        plot_points{i_obj} = XY_Data;
     else
-        plot_points{i} = XYZ_Data;
+        plot_points{i_obj} = XYZ_Data;
     end
 end
 
