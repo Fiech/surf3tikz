@@ -30,6 +30,8 @@ function [pt_point_positions, tikz_support_points, cdata_limits] = surf3tikz(h_f
 %      .force_3d: For views where one dimension is hidden to the viewer, a 2D approach is used by default.
 %       To force the use of the 3D approach set this to true, default: false
 %      .use_imagesc: For top down views, imagesc can be used as a way to save space for the image file
+%      .use_polaraxis: write tikz output into a polaraxis environment using cart2pol.
+%       force_3d is enforced for correct tikz_support_positions mapping, default: false
 %       file, default: false; Right now there are the following constraints:
 %         * EXPERIMENTAL: It's quite experimental, so you might run into issues with coloring.
 %         * For simplicity reasons, it only works with the first surface plot the algorihm finds.
@@ -115,6 +117,10 @@ if ~isfield(cfg, 'use_imagesc')
     cfg.use_imagesc = false;
 end
 
+if ~isfield(cfg, 'use_polaraxis')
+    cfg.use_polaraxis = false;
+end
+
 if ~isfield(cfg, 'print_all')
     cfg.print_all = false;
 end
@@ -137,6 +143,10 @@ end
 
 if cfg.use_imagesc
     warning('The imagesc method is still experimental. Keep this in mind, when using it.');
+end
+
+if cfg.use_polaraxis
+    cfg.force_3d = true;
 end
 
 if cfg.print_all && cfg.use_imagesc
@@ -343,6 +353,12 @@ else
     [pt_point_positions, px_pos_order] = get_point_positions(tikz_support_points, plot_handles, cfg, debug);
 end
 
+% overwrite tikz_support_points with cart2pol mapping for polaraxis output
+if cfg.use_polaraxis
+    [tikz_support_points(:,1),tikz_support_points(:,2)] = cart2pol(tikz_support_points(:,1),tikz_support_points(:,2));
+    tikz_support_points(:,1) = rad2deg(tikz_support_points(:,1));
+end
+
 %% print image data
 if (cfg.write_png) && has_imageable
     if use_imagesc
@@ -479,12 +495,39 @@ if (cfg.write_png) && has_imageable
         [sc_ec, sc_msg] = system(syscall);
         if sc_ec
             warning('Mogrify transparency call "%s" failed with error code %d: %s', syscall, sc_ec, sc_msg);
+            disp('Trying MATLAB transparency work-around instead...');
+            % work-around if mogrify is not available
+            try
+                [I,~,alpha] = imread([export_name, '.png']);
+                if isempty(alpha)
+                    alpha = uint8(255*ones(size(I,1), size(I,2)));
+                end
+                tol = 5;                            % tolerance
+                isWhite = all(I > (255 - tol), 3);  % close to white
+                alpha(isWhite) = 0;
+                imwrite(I, [export_name, '.png'], 'png', 'Alpha', alpha);
+            catch
+                warning('MATLAB transparency work-around did not work.');
+            end
         end
         if plot2d
             syscall = ['mogrify -trim ', export_name, '.png'];
             [sc_ec, sc_msg] = system(syscall);
             if sc_ec
                 warning('Mogrify trim call "%s" failed with error code %d: %s', syscall, sc_ec, sc_msg);
+                disp('Trying MATLAB trim work-around instead...');
+                % work-around if mogrify is not available
+                try
+                    rows = find(any(~isWhite,2)); 
+                    cols = find(any(~isWhite,1));
+                    if ~isempty(rows) && ~isempty(cols)
+                        I     = I(rows(1):rows(end), cols(1):cols(end), :);
+                        alpha = alpha(rows(1):rows(end), cols(1):cols(end));
+                    end
+                    imwrite(I, [export_name, '.png'], 'png', 'Alpha', alpha);
+                catch
+                    warning('MATLAB trim work-around did not work.');
+                end
             end
             if grow_border
                 delete(helper_point_plot);
@@ -512,7 +555,11 @@ if (cfg.write_tikz)
     fprintf(tfile_h, '%% created with surf3tikz written by Johannes Schlichenmaier\n');
     fprintf(tfile_h, '%% based on surf2TikZ written by Fabian Roos\n');
     fprintf(tfile_h, '\\begin{tikzpicture}\n');
-    fprintf(tfile_h, '\t \\begin{axis}[\n');
+    if cfg.use_polaraxis
+        fprintf(tfile_h, '\t \\begin{polaraxis}[\n');
+    else
+        fprintf(tfile_h, '\t \\begin{axis}[\n');
+    end
     fprintf(tfile_h, '\t \t grid,\n');
     fprintf(tfile_h, '\t \t enlargelimits = false,\n');
     
@@ -530,6 +577,13 @@ if (cfg.write_tikz)
         end
         fprintf(tfile_h, '\t \t xlabel = {%s},\n', label_horz_txt);
         fprintf(tfile_h, '\t \t ylabel = {%s},\n', label_vert_txt);
+    elseif cfg.use_polaraxis
+        fprintf(tfile_h, '\t \t ymax = %f,\n', lim_y(2));
+        fprintf(tfile_h, '\t \t y axis line style={opacity=0},\n');
+        fprintf(tfile_h, '\t \t y tick style = {opacity=0},\n');
+        fprintf(tfile_h, '\t \t y tick label style = {opacity=0},\n');
+        fprintf(tfile_h, '\t \t xticklabel={\\pgfmathprintnumber{\\tick}$^\\circ$},\n');
+        fprintf(tfile_h, '\t \t axis on top,\n');
     else
         fprintf(tfile_h, '\t \t xmin = %f,\n', lim_x(1));
         fprintf(tfile_h, '\t \t xmax = %f,\n', lim_x(2));
@@ -578,7 +632,11 @@ if (cfg.write_tikz)
                 png_range_horz(1), png_range_horz(2), png_range_vert(1), png_range_vert(2) );
             fprintf(tfile_h, '\t \t {%s.png};\n', export_fname);
         else
-            fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
+            if cfg.use_polaraxis
+                fprintf(tfile_h, '\t \t \\addplot3 graphics[auto adjust axis=false,\n');
+            else
+                fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
+            end
             fprintf(tfile_h, '\t \t \t points={%% important\n');
             for i=px_pos_order
                 fprintf(tfile_h, '\t \t \t \t (%f,%f,%f) => (%f,%f)\n', tikz_support_points(i,1), ...
@@ -619,7 +677,11 @@ if (cfg.write_tikz)
         fprintf(tfile_h, '\n');
     end
     
-    fprintf(tfile_h, '\t \\end{axis}\n');
+    if cfg.use_polaraxis
+        fprintf(tfile_h, '\t \\end{polaraxis}\n');
+    else
+        fprintf(tfile_h, '\t \\end{axis}\n');
+    end
     fprintf(tfile_h, '\\end{tikzpicture}');
     fclose(tfile_h);
 end

@@ -3,6 +3,14 @@
 surf3tikz is a MATLAB function that creates a TikZ+PNG file from a 3D plot.
 
 
+**NOTE**: As I have stopped using MATLAB for my needs, this will be the final version of this function.
+You are welcome to fork it and develop it further, but I will most likely not accept any pull requests,
+as I don't have the means to test them and are myself not using the function anymore. Thanks to the people
+who used the function and I hope you found it useful once in a while. It was a ton of fun!
+
+-- Fiech (26.02.2026)
+
+
 ## Overview
 
 To achieve its goal, surf3tikz determines the corner points of the surrounding axes box and
