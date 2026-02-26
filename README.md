@@ -1,6 +1,9 @@
 # surf3tikz
 
-surf3tikz is a MATLAB function that creates a TikZ+PNG file from a 3D plot.
+surf3tikz is a comprehensive MATLAB function that creates a TikZ figure from a matlab plot. It
+started as a small script to automatically map a 2D picture of a 3D matlab plot to a pgfplots
+axis via the _\addplot graphics_ functionality but quickly grew into a fully fledged figure
+conversion tool with many functionalities and options.
 
 
 ## Overview

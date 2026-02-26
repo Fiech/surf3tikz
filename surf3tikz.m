@@ -524,6 +524,7 @@ end
 
 %% write TikZ/PGFPlots data
 
+
 [~, export_fname, ~] = fileparts(export_name);
 
 if plot2d
@@ -532,8 +533,16 @@ else
     view_dims = [];
 end
 
-[plot_parameters_ext, plot_data_filenames] = process_plots_ext(plot_handles.axes.Children(children_idc_plot_ext), children_idc_plot_gto(children_idc_plot_ext), export_name, plot2d, abs(view_dims), s3t_constants);
-[plot_parameters_inline, plot_points_inline] = process_plots_inline(plot_handles.axes.Children(children_idc_plot_inline), children_idc_plot_gto(children_idc_plot_inline), plot2d, abs(view_dims), s3t_constants);
+meta_config = struct();
+meta_config.export_name = export_name;
+meta_config.plot2d = plot2d;
+meta_config.view_dims = view_dims;
+meta_config.s3t_constants = s3t_constants;
+meta_config.ext_filenames = {};
+
+
+% [plot_parameters_ext, plot_data_filenames] = process_plots_ext(plot_handles.axes.Children(children_idc_plot_ext), children_idc_plot_gto(children_idc_plot_ext), export_name, plot2d, abs(view_dims), s3t_constants);
+% [plot_parameters_inline, plot_points_inline] = process_plots_inline(plot_handles.axes.Children(children_idc_plot_inline), children_idc_plot_gto(children_idc_plot_inline), plot2d, abs(view_dims), s3t_constants);
 
 if (cfg.write_tikz)
     tfile_h = fopen([export_name, '.tikz'], 'w');
@@ -608,12 +617,12 @@ if (cfg.write_tikz)
         else
             fprintf(tfile_h, '\t \t \\addplot3 graphics[\n');
             fprintf(tfile_h, '\t \t \t points={%% important\n');
-            for i=px_pos_order
-                fprintf(tfile_h, '\t \t \t \t (%f,%f,%f) => (%f,%f)\n', tikz_support_points(i,1), ...
-                    tikz_support_points(i,2), ...
-                    tikz_support_points(i,3), ...
-                    pt_point_positions(i,1), ...
-                    pt_point_positions(i,2));
+            for i_pos=px_pos_order
+                fprintf(tfile_h, '\t \t \t \t (%f,%f,%f) => (%f,%f)\n', tikz_support_points(i_pos,1), ...
+                    tikz_support_points(i_pos,2), ...
+                    tikz_support_points(i_pos,3), ...
+                    pt_point_positions(i_pos,1), ...
+                    pt_point_positions(i_pos,2));
             end
             fprintf(tfile_h, '\t \t }]{%s.png};\n', export_fname);
         end
@@ -621,30 +630,53 @@ if (cfg.write_tikz)
     end
     
     
-    for i=sort([children_idc_plot_ext, children_idc_plot_inline])
-        [~,ext_idx] = ismember(i, children_idc_plot_ext);
-        [~,inline_idx] = ismember(i, children_idc_plot_inline);
+    for i_gobj=sort([children_idc_plot_ext, children_idc_plot_inline],'descend') % descent to peserve matlab order
+        [~,ext_idx] = ismember(i_gobj, children_idc_plot_ext);
+        [~,inline_idx] = ismember(i_gobj, children_idc_plot_inline);
         
-        if plot2d
-            fprintf(tfile_h, '\t \t \\addplot+[%%\n');
-        else
-            fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
+        is_ext = ext_idx > 0;
+        
+        tikz_string = '';
+        
+        switch (children_idc_plot_gto(i_gobj))
+            case {s3t_constants.GTO_LINE;
+                    s3t_constants.GTO_SCATTER}
+                [plot_data, plot_meta] = get_plotdata_line(plot_handles.axes.Children(i_gobj));
+                [tikz_string, meta_config.ext_filenames] = generate_tikzcode_line(plot_data, plot_meta, is_ext, meta_config);
+            case s3t_constants.GTO_QUIVER
+                [plot_data, plot_meta] = get_plotdata_quiver(plot_handles.axes.Children(i_gobj));
+                [tikz_string, ext_filenames] = generate_tikzcode_quiver(plot_data, plot_meta, plot2d, abs(view_dims), is_ext, ext_filenames, s3t_constants);
+            case s3t_constants.GTO_POLYGON
+                [plot_data, plot_meta] = get_plotdata_polyshape(plot_handles.axes.Children(i_gobj));
+                [tikz_string, meta_config.ext_filenames] = generate_tikzcode_line(plot_data, plot_meta, is_ext, meta_config);
+                
+            otherwise
+                error('Do not know what to do with this type of graphics object');
         end
-        fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
-        fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks,');
-        if ext_idx
-            fprintf(tfile_h, '\t \t ]\n');
-            fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', plot_data_filenames{ext_idx});
-        else
-            fprintf(tfile_h, '\t \t ] plot coordinates {%%\n');
-            if plot2d
-                fprintf(tfile_h, '\t \t \t (%f,%f)\n', plot_points_inline{inline_idx});
-            else
-                fprintf(tfile_h, '\t \t \t (%f,%f,%f)\n', plot_points_inline{inline_idx});
-            end
-            fprintf(tfile_h, '\t \t };\n');
-        end
-        fprintf(tfile_h, '\n');
+        
+        fprintf(tfile_h, '%s', tikz_string);
+        
+%         
+%         if plot2d
+%             fprintf(tfile_h, '\t \t \\addplot+[%%\n');
+%         else
+%             fprintf(tfile_h, '\t \t \\addplot3+[%%\n');
+%         end
+%         fprintf(tfile_h, '\t \t \t %% %s\n', 'mark=*, % x, +, o');
+%         fprintf(tfile_h, '\t \t \t %% %s\n', '% only marks,');
+%         if ext_idx
+%             fprintf(tfile_h, '\t \t ]\n');
+%             fprintf(tfile_h, '\t \t table[col sep = comma]{%s};\n', plot_data_filenames{ext_idx});
+%         else
+%             fprintf(tfile_h, '\t \t ] plot coordinates {%%\n');
+%             if plot2d
+%                 fprintf(tfile_h, '\t \t \t (%f,%f)\n', plot_points_inline{inline_idx});
+%             else
+%                 fprintf(tfile_h, '\t \t \t (%f,%f,%f)\n', plot_points_inline{inline_idx});
+%             end
+%             fprintf(tfile_h, '\t \t };\n');
+%         end
+%         fprintf(tfile_h, '\n');
     end
     
     fprintf(tfile_h, '\t \\end{axis}\n');
@@ -661,6 +693,170 @@ end
 end
 
 %% additional functions
+
+function [ plot_data, plot_meta ] = get_plotdata_polyshape(g_object)
+
+plot_meta = {};
+
+xdata = [g_object.Shape.Vertices(:,1); g_object.Shape.Vertices(1,1)];
+ydata = [g_object.Shape.Vertices(:,2); g_object.Shape.Vertices(1,2)];
+zdata = zeros(size(xdata));
+
+datalen = max([length(xdata), length(ydata), length(zdata)]);
+
+if isempty(xdata)
+    xdata = nan(datalen,1);
+end
+
+if isempty(ydata)
+    ydata = nan(datalen,1);
+end
+
+if isempty(zdata)
+    zdata = nan(datalen,1);
+end
+
+plot_data = [xdata, ydata, zdata];
+
+end
+
+function [ plot_data, plot_meta ] = get_plotdata_line(g_object)
+plot_meta = {};
+
+xdata = g_object.XData(:);
+ydata = g_object.YData(:);
+zdata = g_object.ZData(:);
+
+datalen = max([length(xdata), length(ydata), length(zdata)]);
+
+if isempty(xdata)
+    xdata = nan(datalen,1);
+end
+
+if isempty(ydata)
+    ydata = nan(datalen,1);
+end
+
+if isempty(zdata)
+    zdata = nan(datalen,1);
+end
+
+plot_data = [xdata, ydata, zdata];
+
+end
+
+
+function [ tikz_string, ext_filenames ] = generate_tikzcode_line(plot_data, plot_meta, is_ext, runtime_config)
+
+tikz_string = '';
+plot2d = runtime_config.plot2d;
+view_dims = abs(runtime_config.view_dims);
+ext_filenames = runtime_config.ext_filenames;
+s3t_constants = runtime_config.s3t_constants;
+export_name = runtime_config.export_name;
+
+if plot2d
+    tikz_string = [tikz_string, sprintf('\t \t \\addplot+[%%\n')];
+else
+    tikz_string = [tikz_string, sprintf('\t \t \\addplot3+[%%\n')];
+end
+tikz_string = [tikz_string, sprintf('\t \t \t %% %s\n', 'mark=*, % x, +, o')];
+tikz_string = [tikz_string, sprintf('\t \t \t %% %s\n', '% only marks,')];
+if is_ext
+    ext_filenames = create_ext_file(plot_data, s3t_constants.GTO_LINE, export_name, plot2d, view_dims, s3t_constants, ext_filenames);
+    tikz_string = [tikz_string, sprintf('\t \t ]\n')];
+    tikz_string = [tikz_string, sprintf('\t \t table[col sep = comma]{%s};\n', ext_filenames{end})];
+else
+    tikz_string = [tikz_string, sprintf('\t \t ] plot coordinates {%%\n')];
+    if plot2d
+        tikz_string = [tikz_string, sprintf('\t \t \t (%f,%f)\n', plot_data(:,view_dims)')];
+    else
+        tikz_string = [tikz_string, sprintf('\t \t \t (%f,%f,%f)\n', plot_data')];
+    end
+    tikz_string = [tikz_string, sprintf('\t \t };\n')];
+end
+tikz_string = [tikz_string, sprintf('\n')];
+
+end
+
+
+
+function [ plot_data, plot_meta ] = get_plotdata_quiver(g_object)
+plot_meta = {};
+
+xdata = g_object.XData(:);
+ydata = g_object.YData(:);
+zdata = g_object.ZData(:);
+
+udata = g_object.UData(:);
+vdata = g_object.VData(:);
+wdata = g_object.WData(:);
+
+datalen = max([length(xdata), length(ydata), length(zdata), length(udata), length(vdata), length(wdata)]);
+
+if isempty(xdata)
+    xdata = nan(datalen,1);
+end
+
+if isempty(ydata)
+    ydata = nan(datalen,1);
+end
+
+if isempty(zdata)
+    zdata = nan(datalen,1);
+end
+
+if isempty(udata)
+    udata = nan(datalen,1);
+end
+
+if isempty(vdata)
+    vdata = nan(datalen,1);
+end
+
+if isempty(wdata)
+    wdata = nan(datalen,1);
+end
+
+plot_data = [xdata, ydata, zdata, udata, vdata, wdata];
+
+end
+
+
+function [ tikz_string, ext_filenames ] = generate_tikzcode_quiver(plot_data, plot_meta, plot2d, view_dims, is_ext, ext_filenames, s3t_constants)
+
+tikz_string = '';
+
+if plot2d
+    tikz_string = [tikz_string, sprintf('\t \t \\addplot+[%%\n')];
+else
+    tikz_string = [tikz_string, sprintf('\t \t \\addplot3+[%%\n')];
+end
+tikz_string = [tikz_string, sprintf('\t \t \t %% %s\n', 'mark=*, % x, +, o')];
+tikz_string = [tikz_string, sprintf('\t \t \t %% %s\n', '% only marks,')];
+tikz_string = [tikz_string, sprintf('\t \t \t quiver={%%\n')];
+tikz_string = [tikz_string, sprintf('\t \t \t \t u=\\thisrow{u},\n')];
+tikz_string = [tikz_string, sprintf('\t \t \t \t v=\\thisrow{v},\n')];
+tikz_string = [tikz_string, sprintf('\t \t \t \t scale arrows=0.5,\n')];
+tikz_string = [tikz_string, sprintf('\t \t \t },\n')];
+tikz_string = [tikz_string, sprintf('\t \t \t ->,\n')];
+if is_ext
+    tikz_string = [tikz_string, sprintf('\t \t ]\n')];
+    tikz_string = [tikz_string, sprintf('\t \t table[col sep = comma]{%s};\n', plot_data_filenames{ext_idx})];
+else
+    tikz_string = [tikz_string, sprintf('\t \t ] table[col sep = comma] {%%\n')];
+    if plot2d
+        tikz_string = [tikz_string, sprintf('\t \t \t x, y, u, v\n')];
+        tikz_string = [tikz_string, sprintf('\t \t \t %f, %f, %f, %f\n', plot_data(:,[view_dims, 3+view_dims])')];
+    else
+        tikz_string = [tikz_string, sprintf('\t \t \t (%f,%f,%f)\n', plot_data')];
+    end
+    tikz_string = [tikz_string, sprintf('\t \t };\n')];
+end
+tikz_string = [tikz_string, sprintf('\n')];
+
+end
+
 
 function [ global_data_limit_x, global_data_limit_y, global_data_limit_z ] = get_data_limits( gobjects )
 %GET_DATA_LIMITS get the global max and min values in X/Y/Z direction of the given graphical data objects
@@ -949,7 +1145,6 @@ for i=1:4
         px_pos_order = 1:4;
     end
 end
-
 % reenable the plots in the axes, leaving the support plot hidden
 for i=1:numel(plot_handles.axes.Children)
     plot_handles.axes.Children(i).Visible = 'on';
@@ -989,71 +1184,104 @@ delete(plot_handles.support_plot);
 
 end
 
+function [ file_names ] = create_ext_file(plot_obj, got, export_name, plot2d, view_dims, s3t_constants, file_names)
+[file_path, file_base_name, file_base_ext] = fileparts(export_name);
 
-function [plot_parameters, file_names ] = process_plots_ext(g_objects, got, write_name, plot2d, view_dims, s3t_constants)
-%PROCESS_PLOTS saves line plots into CSV files
-num_objects = numel(g_objects);
-[file_path, file_base_name, ~] = fileparts(write_name);
+file_base_name = [file_base_name, file_base_ext];
 
 if isempty(file_path)
     file_path = '.';
 end
 
-file_names = cell(num_objects);
-plot_parameters = cell(num_objects);
+num_existing_files = numel(file_names);
+file_names{num_existing_files+1} = sprintf([file_base_name, '-plot-%d.csv'], num_existing_files+1);
 
-for i_obj=1:num_objects
-    switch got(i_obj)
-        case {s3t_constants.GTO_LINE;
-                s3t_constants.GTO_SCATTER;
-                s3t_constants.GTO_QUIVER}
-            XYZ_Data = [g_objects(i_obj).XData;g_objects(i_obj).YData;g_objects(i_obj).ZData];
-        case s3t_constants.GTO_POLYGON
-            XYZ_Data = [g_objects(i_obj).Shape.Vertices';zeros(1,size(g_objects(i_obj).Shape.Vertices,1))];
-        otherwise
-            error('Do not know what to do with this type of graphics object');
-    end
-    file_names{i_obj} = sprintf([file_base_name, '-plot-%d.csv'], i_obj);
-    f_handle = fopen([file_path filesep file_names{i_obj}], 'w+');
-    if plot2d
-        XY_Data = XYZ_Data(view_dims, :);
-        fprintf(f_handle, '%f,%f\n', XY_Data);
-    else
-        fprintf(f_handle, '%f,%f,%f\n', XYZ_Data);
-    end
-    fclose(f_handle);
+switch got
+    case {s3t_constants.GTO_LINE;
+            s3t_constants.GTO_SCATTER;
+            s3t_constants.GTO_QUIVER}
+        XYZ_Data = [plot_obj(:,1), plot_obj(:,2), plot_obj(:,3)]';
+    case s3t_constants.GTO_POLYGON
+        XYZ_Data = [plot_obj.Shape.Vertices';zeros(1,size(plot_obj.Shape.Vertices,1))];
+    otherwise
+        error('Do not know what to do with this type of graphics object');
 end
+f_handle = fopen([file_path filesep file_names{num_existing_files+1}], 'w+');
+if plot2d
+    XY_Data = XYZ_Data(view_dims, :);
+    fprintf(f_handle, '%f,%f\n', XY_Data);
+else
+    fprintf(f_handle, '%f,%f,%f\n', XYZ_Data);
+end
+fclose(f_handle);
 
 end
 
 
-function [plot_parameters, plot_points ] = process_plots_inline(g_objects, got, plot2d, view_dims, s3t_constants)
-%PROCESS_PLOTS extracts the line plot x/y/z positions
-num_objects = numel(g_objects);
+% function [plot_parameters, file_names ] = process_plots_ext(g_objects, got, write_name, plot2d, view_dims, s3t_constants)
+% %PROCESS_PLOTS saves line plots into CSV files
+% num_objects = numel(g_objects);
+% [file_path, file_base_name, ~] = fileparts(write_name);
+% 
+% if isempty(file_path)
+%     file_path = '.';
+% end
+% 
+% file_names = cell(num_objects);
+% plot_parameters = cell(num_objects);
+% 
+% for i_obj=1:num_objects
+%     switch got(i_obj)
+%         case {s3t_constants.GTO_LINE;
+%                 s3t_constants.GTO_SCATTER;
+%                 s3t_constants.GTO_QUIVER}
+%             XYZ_Data = [g_objects(i_obj).XData;g_objects(i_obj).YData;g_objects(i_obj).ZData];
+%         case s3t_constants.GTO_POLYGON
+%             XYZ_Data = [g_objects(i_obj).Shape.Vertices';zeros(1,size(g_objects(i_obj).Shape.Vertices,1))];
+%         otherwise
+%             error('Do not know what to do with this type of graphics object');
+%     end
+%     file_names{i_obj} = sprintf([file_base_name, '-plot-%d.csv'], i_obj);
+%     f_handle = fopen([file_path filesep file_names{i_obj}], 'w+');
+%     if plot2d
+%         XY_Data = XYZ_Data(view_dims, :);
+%         fprintf(f_handle, '%f,%f\n', XY_Data);
+%     else
+%         fprintf(f_handle, '%f,%f,%f\n', XYZ_Data);
+%     end
+%     fclose(f_handle);
+% end
+% 
+% end
 
-plot_points = cell(num_objects);
-plot_parameters = cell(num_objects);
 
-for i_obj=1:num_objects
-    switch got(i_obj)
-        case {s3t_constants.GTO_LINE;
-                s3t_constants.GTO_SCATTER;
-                s3t_constants.GTO_QUIVER}
-            XYZ_Data = [g_objects(i_obj).XData;g_objects(i_obj).YData;g_objects(i_obj).ZData];
-        case s3t_constants.GTO_POLYGON
-            XYZ_Data = [g_objects(i_obj).Shape.Vertices';zeros(1,size(g_objects(i_obj).Shape.Vertices,1))];
-        otherwise
-            error('Do not know what to do with this type of graphics object');
-    end
-    if plot2d
-        XY_Data = XYZ_Data(view_dims, :);
-        plot_points{i_obj} = XY_Data;
-    else
-        plot_points{i_obj} = XYZ_Data;
-    end
-end
-
-end
+% function [plot_parameters, plot_points ] = process_plots_inline(g_objects, got, plot2d, view_dims, s3t_constants)
+% %PROCESS_PLOTS extracts the line plot x/y/z positions
+% num_objects = numel(g_objects);
+% 
+% plot_points = cell(num_objects);
+% plot_parameters = cell(num_objects);
+% 
+% for i_obj=1:num_objects
+%     switch got(i_obj)
+%         case {s3t_constants.GTO_LINE;
+%                 s3t_constants.GTO_SCATTER;
+%                 s3t_constants.GTO_QUIVER}
+%             XYZ_Data = [g_objects(i_obj).XData;g_objects(i_obj).YData;g_objects(i_obj).ZData];
+%         case s3t_constants.GTO_POLYGON
+%             XYZ_Data = [g_objects(i_obj).Shape.Vertices';zeros(1,size(g_objects(i_obj).Shape.Vertices,1))];
+%         otherwise
+%             error('Do not know what to do with this type of graphics object');
+%     end
+%     if plot2d
+%         XY_Data = XYZ_Data(view_dims, :);
+%         plot_points{i_obj} = XY_Data;
+%     else
+%         plot_points{i_obj} = XYZ_Data;
+%     end
+% end
+% 
+% end
 
 
 function [ range_horz, range_vert] = get_print_data_range( g_objects, view_dims, horz_lim, vert_lim )
